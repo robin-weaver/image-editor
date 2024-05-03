@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Client</title>
+    <script src="/fabric.min.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+</head>
+<style>
+    body {
+        margin: 0;
+    }
+    #toolbar {
+        position: absolute;
+        left: 200px;
+        top: 200px;
+        background-color: #f1f1f1;
+        padding: 5px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        display: flex; /* Allows horizontal button placement */
+    }
+    #grab-handle {
+        cursor: grab; /* Indicate grab cursor on hover */
+        width: 20px;
+        height: 26px;
+        background-color: #eee;
+        margin-right: 8px;
+        user-select: none;
+    }
+    #sidebar {
+        display: flex;
+        flex-direction: column;
+        padding-top: 20px;
+        position: fixed;
+        top: 0;
+        right: 0;
+        /* Set your desired width here */
+        width: 200px;
+        /*height: 100vh;  */
+        background-color: #a4a4a4;  /* Optional background color */
+    }
+    #dropzone {
+        width: 100%;
+        height: 100px;
+        border: 2px solid slategrey;
+    }
+
+</style>
+<body>
+
+<canvas id="canvas"></canvas>
+<div id="toolbar">
+    <div id="grab-handle" class="material-icons">drag_indicator</div>
+    <button onclick="bringToFront()"><i class="material-icons">keyboard_double_arrow_up</i></button>
+    <button onclick="bringForward()"><i class="material-icons">keyboard_arrow_up</i></button>
+    <button onclick="sendToBack()"><i class="material-icons">keyboard_double_arrow_down</i></button>
+    <button onclick="sendBackwards()"><i class="material-icons">keyboard_arrow_down</i></button>
+    <button onclick="clone()"><i class="material-icons">control_point_duplicate</i></button>
+    <button onclick="groupObjects()"><i class="material-icons">join_full</i></button>
+    <button onclick="ungroupObjects()"><i class="material-icons">join_inner</i></button>
+    <button onclick="splitImage()"><i class="material-icons">call_split</i></button>
+    <button onclick="deleteObject()"><i class="material-icons">delete</i></button>
+    <button onclick="startDepthEstimation()"><i class="material-icons">height</i></button>
+    <button onclick="startSegmentation()"><i class="material-icons">theater_comedy</i></button>
+    <button onclick="startUpscale()"><i class="material-icons">open_in_full</i></button>
+</div>
+<div id="sidebar">
+      <div class="add-image-options">
+        <input type="text" id="imageUrl" placeholder="Paste images or URL">
+        <button onclick="addImageFromURL()"><i class="material-icons">add_circle_outline</i></button>
+        <div id="dropzone">Drag and drop images here or</div>
+        <button type="button" id="selectImageButton">upload image(s)</button>
+      </div>
+    <button onclick="toggleEraser()">Eraser</button>
+    <button onclick="clearCanvas()">Clear Canvas</button>
+</div>
+<div id="depthControlPanel" style="position: absolute; display: none;">
+    <input type="range" id="depthSlider" min="0" max="2550" value="0">
+    <button onclick="confirmDepth()">Confirm</button>
+</div>
+<div id="segment-controls" style="position: absolute; display: none">
+    <button id="confirm-segment" onclick="confirmSegmentation()">Confirm</button>
+    <button id="switch-selecting" onclick="switchSegmentationMode()">Selecting</button>
+    <button id="remove-point" disabled>Delete last point</button>
+    <button onclick="reverseMask()">Reverse mask</button>
+</div>
+</body>
+<script defer>
+
+// canvas setup
+const canvas = new fabric.Canvas('canvas');
+canvas.setBackgroundColor(
+    {source: 'checker.png', repeat: 'repeat'},
+    () => {
+        canvas.renderAll();
+    }
+);
+canvas.preserveObjectStacking = true;
+
+function clearCanvas() {
+    canvas.clear()
+    canvas.setBackgroundColor(
+        {source: 'checker.png', repeat: 'repeat'},
+        () => {
+            canvas.renderAll();
+        }
+    )
+}
+
+canvas.on('mouse:down', function(opt) {
+  var evt = opt.e;
+  if (evt.altKey === true) {
+    this.isDragging = true;
+    this.selection = false;
+    this.lastPosX = evt.clientX;
+    this.lastPosY = evt.clientY;
+  }
+});
+canvas.on('mouse:move', function(opt) {
+  if (this.isDragging) {
+    var e = opt.e;
+    var vpt = this.viewportTransform;
+    vpt[4] += e.clientX - this.lastPosX;
+    vpt[5] += e.clientY - this.lastPosY;
+    this.requestRenderAll();
+    this.lastPosX = e.clientX;
+    this.lastPosY = e.clientY;
+  }
+});
+canvas.on('mouse:up', function(opt) {
+  // on mouse up we want to recalculate new interaction
+  // for all objects, so we call setViewportTransform
+  this.setViewportTransform(this.viewportTransform);
+  this.isDragging = false;
+  this.selection = true;
+});
+
+canvas.on('mouse:wheel', function(opt) {
+  var delta = opt.e.deltaY;
+  var zoom = canvas.getZoom();
+  zoom *= 0.999 ** delta;
+  if (zoom > 20) zoom = 20;
+  if (zoom < 0.01) zoom = 0.01;
+  canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+  opt.e.preventDefault();
+  opt.e.stopPropagation();
+});
+
+// canvas.on('touch:drag', function(opt){
+//   var e = opt.e;
+//   if (e.touches && e.touches.length == 1) {  // Single touch for panning
+//     var touch = e.touches[0];
+//     var vpt = this.viewportTransform;
+//
+//     if (this.lastPosX && this.lastPosY) {
+//       vpt[4] += touch.clientX - this.lastPosX;
+//       vpt[5] += touch.clientY - this.lastPosY;
+//       this.requestRenderAll();
+//     }
+//
+//     this.lastPosX = touch.clientX;
+//     this.lastPosY = touch.clientY;
+//   }
+//   e.preventDefault();
+//   e.stopPropagation();
+// });
+//
+// // Resetting values when touch ends
+// canvas.on('touch:up', function(opt){
+//   this.isDragging = false;
+//   this.selection = true;
+//   this.lastPosX = null;
+//   this.lastPosY = null;
+// });
+//
+// // Handling zooming on touch using gesture
+// canvas.on('touch:gesture', function(opt) {
+//   if (opt.e.touches && opt.e.touches.length === 2) {
+//     var point = new fabric.Point(opt.e.touches[0].clientX, opt.e.touches[0].clientY);
+//     var scale = opt.self.scale;
+//
+//     var newZoom = scale * (1 + opt.e.scale);
+//     // Limiting the zoom level
+//     newZoom = Math.max(0.01, Math.min(20, newZoom));
+//     canvas.zoomToPoint(point, newZoom);
+//
+//     opt.e.preventDefault();
+//     opt.e.stopPropagation();
+//   }
+// });
+
+function onWindowResize() {
+    canvas.setDimensions({width: window.innerWidth, height: window.innerHeight});
+}
+
+window.addEventListener('resize', onWindowResize)
+onWindowResize()
+
+
+// toolbar functions
+function bringToFront() {
+    canvas.bringToFront(canvas.getActiveObject());
+}
+function bringForward() {
+    canvas.bringForward(canvas.getActiveObject());
+}
+function sendToBack() {
+    canvas.sendToBack(canvas.getActiveObject());
+}
+function sendBackwards() {
+    canvas.sendBackwards(canvas.getActiveObject());
+}
+function clone() {
+    canvas.getActiveObject().clone(cloned => {
+        canvas.discardActiveObject();
+        cloned.set({
+            left: cloned.left + 10,
+            top: cloned.top + 10,
+            evented: true
+        });
+        if (cloned.type === 'activeSelection') {
+            cloned.canvas = canvas
+            cloned.forEachObject(obj => {
+                canvas.add(obj)
+            });
+            cloned.setCoords();
+        } else {
+            canvas.add(cloned)
+        }
+        canvas.setActiveObject(cloned);
+        canvas.requestRenderAll();
+    })
+}
+
+function groupObjects() {
+    if (!canvas.getActiveObject()) {
+      return;
+    }
+    if (canvas.getActiveObject().type !== 'activeSelection') {
+      return;
+    }
+    canvas.getActiveObject().toGroup();
+    canvas.requestRenderAll();
+}
+function ungroupObjects() {
+    if (!canvas.getActiveObject()) {
+      return;
+    }
+    if (canvas.getActiveObject().type !== 'group') {
+      return;
+    }
+    canvas.getActiveObject().toActiveSelection();
+    canvas.requestRenderAll();
+}
+
+function deleteObject() {
+    const activeObj = canvas.getActiveObject();
+    canvas.remove(activeObj);
+    if (activeObj && activeObj.type === 'activeSelection') {
+        const objects = activeObj.getObjects();
+        objects.forEach(obj => {
+            canvas.remove(obj);
+        });
+    }
+    canvas.discardActiveObject();
+}
+
+// sidebar functions
+
+const imageUrlInput = document.getElementById('imageUrl');
+function addImageFromURL() {
+    const imageURL = imageUrlInput.value
+    fabric.Image.fromURL(imageURL, function(oImg) {
+      canvas.add(oImg);
+    });
+    imageUrlInput.value = ''
+}
+imageUrlInput.addEventListener('paste', (event) => {
+  const clipboardData = event.clipboardData;
+  if (clipboardData && clipboardData.files) {
+      handleImageFiles(Array.from(clipboardData.files))
+  }
+});
+const dropzone = document.getElementById('dropzone');
+dropzone.addEventListener('dragover', (event) => {
+  event.preventDefault();
+  dropzone.classList.add('drag-over');
+});
+
+dropzone.addEventListener('dragleave', () => {
+  dropzone.classList.remove('drag-over');
+});
+
+dropzone.addEventListener('drop', (event) => {
+  event.preventDefault();
+  dropzone.classList.remove('drag-over');
+  const droppedFiles = event.dataTransfer.files;
+  handleImageFiles(Array.from(droppedFiles))
+});
+const selectImageButton = document.getElementById('selectImageButton');
+selectImageButton.addEventListener('click', () => {
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'image/*';
+  fileInput.multiple = true;
+  fileInput.style.display = 'none';
+
+  fileInput.addEventListener('change', (event) => {
+    const selectedFiles = Array.from(event.target.files);
+    if (selectedFiles.length > 0) {
+        handleImageFiles(selectedFiles);
+    }
+  });
+  fileInput.click();
+});
+function handleImageFiles(files) {
+    const  center = CenterCoord()
+  files.forEach(imageFile => {
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const dataURL = event.target.result;
+      fabric.Image.fromURL(dataURL, (img) => {
+          img.set({
+              left: center.x,
+              top: center.y
+          })
+          canvas.add(img);
+      });
+    };
+      if (imageFile.type.startsWith('image/')) {
+      reader.readAsDataURL(imageFile);
+    }
+  });
+}
+
+function toggleEraser() {
+    canvas.freeDrawingBrush = new fabric.EraserBrush(canvas);
+    canvas.freeDrawingBrush.width = 10;
+    canvas.isDrawingMode = !canvas.isDrawingMode
+}
+
+
+// floating toolbar functionality
+const toolbar = document.getElementById('toolbar');
+const grabHandle = document.getElementById('grab-handle');
+let offsetX = 0;
+let offsetY = 0;
+let isDragging = false;
+grabHandle.addEventListener('mousedown', () => {
+    isDragging = true;
+    offsetX = event.clientX - toolbar.offsetLeft;
+    offsetY = event.clientY - toolbar.offsetTop;
+});
+
+document.addEventListener('mouseup', () => {
+    isDragging = false;
+});
+document.addEventListener('mousemove', (event) => {
+    if (isDragging) {
+        toolbar.style.left = event.clientX - offsetX + 'px';
+        toolbar.style.top = event.clientY - offsetY + 'px';
+    }
+});
+
+function CenterCoord(){
+    const zoom = canvas.getZoom()
+   return{
+      x:fabric.util.invertTransform(canvas.viewportTransform)[4]+(canvas.width/zoom)/2,
+      y:fabric.util.invertTransform(canvas.viewportTransform)[5]+(canvas.height/zoom)/2
+   }
+}
+
+// separation
+function splitImage() {
+    const activeObject = canvas.getActiveObject();
+    if (!activeObject || activeObject.type !== 'image' && activeObject.type !== 'group') {
+        alert("No image or non-image object selected!");
+        return;
+    }
+
+    const srcCanvas = document.createElement('canvas');
+    const ctx = srcCanvas.getContext('2d');
+    srcCanvas.width = activeObject.getScaledWidth();
+    srcCanvas.height = activeObject.getScaledHeight();
+    activeObject.cloneAsImage((clonedImg) => {
+        ctx.drawImage(clonedImg.getElement(), 0, 0, srcCanvas.width, srcCanvas.height);
+        const imageData = ctx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+        const data = imageData.data;
+
+        const visited = new Uint8Array(srcCanvas.width * srcCanvas.height);
+        const segments = [];
+
+        function isTransparent(x, y) {
+            const i = (y * srcCanvas.width + x) * 4;
+            return data[i + 3] === 0;
+        }
+
+        function floodFillBFS(startX, startY) {
+            const queue = [[startX, startY]];
+            const segment = [];
+            while (queue.length) {
+                const [x, y] = queue.shift();  // Dequeue
+                if (x < 0 || x >= srcCanvas.width || y < 0 || y >= srcCanvas.height) continue;
+                const index = y * srcCanvas.width + x;
+                if (visited[index] || isTransparent(x, y)) continue;
+                visited[index] = 1;  // Mark as visited
+                segment.push([x, y]);
+                // Enqueue all 4 directional neighbors
+                queue.push([x + 1, y]);
+                queue.push([x - 1, y]);
+                queue.push([x, y + 1]);
+                queue.push([x, y - 1]);
+            }
+            return segment;
+        }
+
+        for (let y = 0; y < srcCanvas.height; y++) {
+            for (let x = 0; x < srcCanvas.width; x++) {
+                if (!visited[y * srcCanvas.width + x] && !isTransparent(x, y)) {
+                    const segment = floodFillBFS(x, y);
+                    if (segment.length > 0) {
+                        segments.push(segment);
+                    }
+                }
+            }
+        }
+
+        canvas.remove(activeObject);
+
+        segments.forEach(segment => {
+            const bounds = segment.reduce((acc, [x, y]) => ({
+                minX: Math.min(acc.minX, x),
+                maxX: Math.max(acc.maxX, x),
+                minY: Math.min(acc.minY, y),
+                maxY: Math.max(acc.maxY, y)
+            }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+
+            const regionWidth = bounds.maxX - bounds.minX + 1;
+            const regionHeight = bounds.maxY - bounds.minY + 1;
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = regionWidth;
+            tempCanvas.height = regionHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            const segmentImageData = tempCtx.createImageData(regionWidth, regionHeight);
+
+            segment.forEach(([x, y]) => {
+                const localX = x - bounds.minX;
+                const localY = y - bounds.minY;
+                const segmentIndex = (localY * regionWidth + localX) * 4;
+                const canvasIndex = (y * srcCanvas.width + x) * 4;
+                for (let i = 0; i < 4; i++) {
+                    segmentImageData.data[segmentIndex + i] = data[canvasIndex + i];
+                }
+            });
+            tempCtx.putImageData(segmentImageData, 0, 0);
+
+            fabric.Image.fromURL(tempCanvas.toDataURL(), (newImg) => {
+                newImg.set({
+                    left: activeObject.left + bounds.minX,
+                    top: activeObject.top + bounds.minY,
+                    scaleX: activeObject.scaleX,
+                    scaleY: activeObject.scaleY,
+                });
+                canvas.add(newImg);
+                canvas.renderAll();
+            });
+        });
+    }, {
+        crossOrigin: 'anonymous'
+    });
+}
+
+
+const worker = new Worker('worker.js', {
+    type: 'module',
+});
+
+let currentDepthData;
+let originalImageData;
+let currentImageOnCanvas;
+let imageObject;
+let segmentPoints = [];
+let decodeResultArray = [];
+
+worker.addEventListener('message', e => {
+    const { type, data } = e.data
+    console.log(type, ' | ')
+    if (type === 'depth_result') {
+        handleDepthResult(data)
+    } else if (type === 'segment_result' && data === 'done') {
+        canvas.selection = false;
+        const segmentationControls = document.getElementById('segment-controls');
+        segmentationControls.style.display = 'block';
+        const imageBoundingRect = imageToSegment.getBoundingRect();
+        segmentationControls.style.left = `${imageBoundingRect.left}px`;
+        segmentationControls.style.top = `${imageBoundingRect.top + imageBoundingRect.height + 10}px`;
+        canvas.on('mouse:down', handleMouseDown);
+    } else if (type === 'decode_result') {
+        decodeResultArray.push(data)
+        handleDecodeResult();
+    } else if (type === 'upscale_result') {
+        handleUpscaleResult(data)
+    }
+})
+
+// depth removal stuff
+
+async function startDepthEstimation() {
+    const activeObject = canvas.getActiveObject();
+    imageObject = activeObject
+    imageObject['selectable'] = false;
+    if (!activeObject || activeObject.type !== 'image') {
+        alert("No image selected!");
+        return;
+    }
+    currentImageOnCanvas = activeObject;
+    canvas.discardActiveObject()
+    // worker flow
+    worker.postMessage({type: 'depth', data: activeObject.toDataURL({withoutTransform: true})})
+    originalImageData = activeObject._element;
+}
+
+function handleDepthResult(data) {
+    currentDepthData = data
+    let minDepth = Infinity;
+    let maxDepth = -Infinity;
+    for (let depthValue of currentDepthData) {
+        if (depthValue < minDepth) {
+            minDepth = depthValue;
+        }
+        if (depthValue > maxDepth) {
+            maxDepth = depthValue;
+        }
+    }
+    // Update the depth slider's minimum, maximum, and reset its current value
+    const depthSlider = document.getElementById('depthSlider');
+    depthSlider.min = minDepth;
+    depthSlider.max = maxDepth;
+    depthSlider.value = minDepth
+    // Show the slider and button
+    const panel = document.getElementById('depthControlPanel');
+    panel.style.display = 'block';
+    const imageBoundingRect = imageObject.getBoundingRect();
+    panel.style.left = `${imageBoundingRect.left}px`;
+    panel.style.top = `${imageBoundingRect.top + imageBoundingRect.height + 10}px`;
+}
+
+
+document.getElementById('depthSlider').addEventListener('input', function() {
+    const depthThreshold = parseFloat(this.value);
+    updateImageBasedOnDepth(depthThreshold);
+});
+
+function confirmDepth() {
+    document.getElementById('depthControlPanel').style.display = 'none';
+    currentImageOnCanvas.setCoords();
+    imageObject['selectable'] = true;
+    canvas.setActiveObject(imageObject);
+}
+
+
+function updateImageBasedOnDepth(threshold) {
+    const width = currentImageOnCanvas.width;
+    const height = currentImageOnCanvas.height;
+
+    const offscreenCanvas = document.createElement('canvas');
+    const ctx = offscreenCanvas.getContext('2d');
+    offscreenCanvas.width = width;
+    offscreenCanvas.height = height;
+    ctx.drawImage(originalImageData, 0, 0);
+
+    const imgData = ctx.getImageData(0, 0, width, height);
+    const data = imgData.data;
+
+    for (let i = 0, len = currentDepthData.length; i < len; i++) {
+        if (currentDepthData[i] < threshold) {
+            data[i * 4 + 3] = 0;
+        }
+    }
+    ctx.putImageData(imgData, 0, 0);
+    currentImageOnCanvas.setElement(offscreenCanvas);
+    currentImageOnCanvas.setCoords();
+    canvas.requestRenderAll();
+}
+
+
+// segmentation stuff
+
+let imageToSegment;
+let imageToSegmentOrigSrc;
+function startSegmentation() {
+    const activeObject = canvas.getActiveObject();
+    if (!activeObject || activeObject.type !== 'image' && activeObject.type !== 'group') {
+        alert("No image or non-image object selected!");
+        return;
+    }
+    imageToSegment = activeObject;
+    imageToSegmentOrigSrc = imageToSegment.toDataURL()
+    imageToSegment['selectable'] = false;
+    canvas.discardActiveObject()
+    worker.postMessage({type: 'segment', data: imageToSegment.toDataURL()})
+}
+
+canvas.upperCanvasEl.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+}, false);
+
+let selecting = true;
+function switchSegmentationMode() {
+    selecting = !selecting
+    document.getElementById('switch-selecting').textContent = selecting ? 'Selecting' : 'Deselecting'
+}
+
+function handleMouseDown(options) {
+    if (options.target && options.target === imageToSegment) {
+        removeLastPoint.disabled = false;
+        var pointer = canvas.getPointer(options.e);
+
+        // Transform canvas coordinates to image-local coordinates by accounting for the position and scale
+        var imagePointX = (pointer.x - imageToSegment.aCoords.tl.x) / imageToSegment.scaleX;
+        var imagePointY = (pointer.y - imageToSegment.aCoords.tl.y) / imageToSegment.scaleY;
+
+        const label = selecting ? 1 : 0
+        // Store the coordinates relative to the image itself
+        segmentPoints.push({
+            point: [Math.round(imagePointX), Math.round(imagePointY)],
+            label: label
+        });
+
+        console.log(segmentPoints)
+        worker.postMessage({type: 'decode', data: segmentPoints});
+    }
+}
+
+function handleDecodeResult() {
+        for (const decodeResult of decodeResultArray) {
+            const { mask, scores } = decodeResult;
+
+            // Since Fabric.js handles elements differently, let's create a temporary element to manipulate
+            var tempCanvas = document.createElement('canvas');
+            var tempContext = tempCanvas.getContext('2d');
+            tempCanvas.width = imageToSegment.width;
+            tempCanvas.height = imageToSegment.height;
+
+            // Draw the Fabric image element onto this temporary canvas
+            tempContext.drawImage(imageToSegment.getElement(), 0, 0);
+
+            const imageData = tempContext.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+            const pixelData = imageData.data;
+
+            // Select the best mask based on score
+            const numMasks = scores.length;
+            let bestIndex = 0;
+            for (let i = 1; i < numMasks; ++i) {
+                if (scores[i] > scores[bestIndex]) {
+                    bestIndex = i;
+                }
+            }
+            console.log('Applying best mask: ', bestIndex)
+
+            // Overlay mask with a color and semi-transparency
+            for (let i = 0; i < mask.data.length / numMasks; i++) {
+                if (mask.data[numMasks * i + bestIndex] === (maskReversed ? 0 : 1)) {
+                    const offset = 4 * i;
+                    pixelData[offset] = (pixelData[offset] + 0) / 2;       // blend red
+                    pixelData[offset + 1] = (pixelData[offset + 1] + 50) / 2; // blend green
+                    pixelData[offset + 2] = (pixelData[offset + 2] + 150) / 2; // blend blue
+                    pixelData[offset + 3] = 127; // semi-transparent alpha
+                }
+            }
+
+            // Apply edited image data back to the temporary canvas context
+            tempContext.putImageData(imageData, 0, 0);
+
+            // Convert the canvas to a Data URL and update the Fabric image
+            var dataURL = tempCanvas.toDataURL();
+            imageToSegment.setSrc(dataURL, function() {
+                canvas.renderAll(); // Rerender the canvas to display changes
+            });
+        }
+
+}
+
+function confirmSegmentation() {
+    segmentPoints = []
+    removeLastPoint.disabled = true;
+    imageToSegment.setSrc(imageToSegmentOrigSrc, function() {
+        canvas.renderAll(); // Rerender the canvas to ensure it displays the original image
+        document.getElementById('segment-controls').style.display = 'none';  // Hide the segment controls
+        canvas.off('mouse:down', handleMouseDown);
+        imageToSegment['selectable'] = true;
+
+
+
+        // Create a canvas for creating the new images
+        const tempCanvas = document.createElement('canvas');
+        const tempContext = tempCanvas.getContext('2d');
+        tempCanvas.width = imageToSegment.width;
+        tempCanvas.height = imageToSegment.height;
+
+        // Draw the original image to the temp canvas
+        tempContext.drawImage(imageToSegment.getElement(), 0, 0);
+
+        // Retrieve image data for masking
+        const imageToSegmentData = tempContext.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+        const pixelData = imageToSegmentData.data;
+
+        // Create an image data for the inverted mask
+        const invertedImageData = tempContext.createImageData(tempCanvas.width, tempCanvas.height);
+        const invertedPixelData = invertedImageData.data;
+
+        // Copy original data to inverted data initially
+        invertedPixelData.set(pixelData);
+
+        for (const decodeResult of decodeResultArray) {
+            const {mask, scores} = decodeResult;
+
+
+            // Select best mask based on score
+            const numMasks = scores.length;
+            let bestIndex = 0;
+            for (let i = 1; i < numMasks; ++i) {
+                if (scores[i] > scores[bestIndex]) {
+                    bestIndex = i;
+                }
+            }
+
+            // Apply mask to image and prepare the inverted mask image
+            for (let i = 0; i < pixelData.length / 4; i++) {
+                if (mask.data[numMasks * i + bestIndex] === (maskReversed ? 0 : 1)) {
+                    // Masked (transparent for inverted)
+                    invertedPixelData[i * 4 + 3] = 0;
+                } else {
+                    // Not masked (transparent for primary)
+                    pixelData[i * 4 + 3] = 0;
+                }
+            }
+        }
+        decodeResultArray = []
+
+        // Put the masked data back to canvas to create the first image
+        tempContext.putImageData(imageToSegmentData, 0, 0);
+
+        // Create new Fabric Image from the mask canvas
+        const finalMaskedURL = tempCanvas.toDataURL();
+        fabric.Image.fromURL(finalMaskedURL, function(fabricImage) {
+            canvas.add(fabricImage);
+            fabricImage.set({
+                top: imageToSegment.top + 10,
+                left: imageToSegment.left + 10,
+                evented: true
+            });
+        });
+
+        // Put the inverted mask data back to canvas to create the second image
+        tempContext.putImageData(invertedImageData, 0, 0);
+
+        // Create new Fabric Image from the inverted mask canvas
+        const finalInvertedURL = tempCanvas.toDataURL();
+        fabric.Image.fromURL(finalInvertedURL, function(fabricImageInverted) {
+            canvas.add(fabricImageInverted);
+            fabricImageInverted.set({
+                top: imageToSegment.top + 20,
+                left: imageToSegment.left + 20,
+                evented: true
+            });
+        });
+    });
+}
+const removeLastPoint = document.getElementById('remove-point')
+removeLastPoint.addEventListener('click', e => {
+    if (segmentPoints) {
+        segmentPoints.splice(-1, 1)
+        if (segmentPoints.length === 0) {
+            removeLastPoint.disabled = true
+        } else {
+            worker.postMessage({type: 'decode', data: segmentPoints});
+        }
+    }
+})
+
+let maskReversed = false;
+function reverseMask() {
+    maskReversed = !maskReversed;
+    if (decodeResultArray.length !== 0) {
+        handleDecodeResult()
+    }
+}
+
+
+let imgToUpscale;
+function startUpscale() {
+    const activeObject = canvas.getActiveObject();
+    if (!activeObject || activeObject.type !== 'image' && activeObject.type !== 'group') {
+        alert("No image or non-image object selected!");
+        return;
+    }
+    imgToUpscale = activeObject
+    if (imgToUpscale.width > 500 || imgToUpscale.height > 500) {
+        alert('Maximum upscale input is 500x500!')
+        return;
+    }
+    worker.postMessage({
+        type: 'upscale',
+        data: imgToUpscale.toDataURL({withoutTransform: true})
+    })
+}
+
+
+function handleUpscaleResult(result) {
+    addImageToCanvas(result)
+}
+
+function addImageToCanvas(rawData) {
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = rawData.width;
+  offCanvas.height = rawData.height;
+  const ctx = offCanvas.getContext('2d');
+
+  const rgba = new Uint8ClampedArray(rawData.width * rawData.height * 4);
+
+  for (let i = 0, j = 0; i < rawData.data.length; i += 3, j += 4) {
+    rgba[j]     = rawData.data[i];     // R
+    rgba[j + 1] = rawData.data[i + 1]; // G
+    rgba[j + 2] = rawData.data[i + 2]; // B
+    rgba[j + 3] = 255;                 // A (full opacity)
+  }
+
+  const imageData = new ImageData(rgba, rawData.width, rawData.height);
+  ctx.putImageData(imageData, 0, 0);
+
+  const imgElement = new Image();
+  imgElement.onload = function () {
+    const fabricImage = new fabric.Image(imgElement);
+    fabricImage.set({
+      left: imgToUpscale.left + 50,
+      top: imgToUpscale.top + 50
+    });
+    canvas.add(fabricImage);
+    canvas.renderAll();
+  };
+  imgElement.src = offCanvas.toDataURL();
+}
+
+</script>
+</html>
