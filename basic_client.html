@@ -65,6 +65,7 @@
     <button onclick="startDepthEstimation()"><i class="material-icons">height</i></button>
     <button onclick="startSegmentation()"><i class="material-icons">theater_comedy</i></button>
     <button onclick="startUpscale()"><i class="material-icons">open_in_full</i></button>
+    <button onclick="downloadImage()"><i class="material-icons">save_alt</i></button>
 </div>
 <div id="sidebar">
       <div class="add-image-options">
@@ -73,8 +74,35 @@
         <div id="dropzone">Drag and drop images here or</div>
         <button type="button" id="selectImageButton">upload image(s)</button>
       </div>
-    <button onclick="toggleEraser()">Eraser</button>
     <button onclick="clearCanvas()">Clear Canvas</button>
+    <button onclick="togglePaintMode()"><i class="material-icons">brush</i></button>
+    <div id="paint-controls" style="display: none">
+        <label for="brush-size">Brush Size</label><input id="brush-size" type="range" min="1" max="50">
+        <label for="brush-color">Color</label><input id="brush-color" type="color">
+    <fieldset id="brush-select">
+      <legend>Brush type:</legend>
+      <div>
+        <input type="radio" id="paint" name="brush" value="paint" checked />
+        <label for="paint">Paint</label>
+      </div>
+      <div>
+        <input type="radio" id="erase" name="brush" value="erase" />
+        <label for="erase">Erase</label>
+      </div>
+    </fieldset>
+    </div>
+    <button onclick="toggleBucketMode()" id="toggle-bucket">Bucket</button>
+    <div id="bucket-controls" style="display: flex; flex-direction: column">
+        <label>Threshold
+            <input type="range" min="0" max="254" value="20" id="bucket-threshold">
+        </label>
+        <label>Color
+            <input type="color" id="bucket-color">
+        </label>
+        <label>Alpha
+            <input type="range" min="0" max="255" value="255" id="bucket-alpha">
+        </label>
+    </div>
 </div>
 <div id="depthControlPanel" style="position: absolute; display: none;">
     <input type="range" id="depthSlider" min="0" max="2550" value="0">
@@ -98,6 +126,7 @@ canvas.setBackgroundColor(
     }
 );
 canvas.preserveObjectStacking = true;
+fabric.Object.prototype.erasable = false;
 
 function clearCanvas() {
     canvas.clear()
@@ -110,6 +139,8 @@ function clearCanvas() {
 }
 
 canvas.on('mouse:down', function(opt) {
+    let pointer = canvas.getPointer(opt.e)
+    console.log(pointer)
   var evt = opt.e;
   if (evt.altKey === true) {
     this.isDragging = true;
@@ -117,7 +148,14 @@ canvas.on('mouse:down', function(opt) {
     this.lastPosX = evt.clientX;
     this.lastPosY = evt.clientY;
   }
+  if (bucketMode && opt.target) {
+      let pointer = canvas.getPointer(opt.e);
+      let imagePointX = (pointer.x - activeObject.aCoords.tl.x) / activeObject.scaleX;
+      let imagePointY = (pointer.y - activeObject.aCoords.tl.y) / activeObject.scaleY;
+      paintBucket(Math.round(imagePointX), Math.round(imagePointY))
+  }
 });
+
 canvas.on('mouse:move', function(opt) {
   if (this.isDragging) {
     var e = opt.e;
@@ -148,48 +186,19 @@ canvas.on('mouse:wheel', function(opt) {
   opt.e.stopPropagation();
 });
 
-// canvas.on('touch:drag', function(opt){
-//   var e = opt.e;
-//   if (e.touches && e.touches.length == 1) {  // Single touch for panning
-//     var touch = e.touches[0];
-//     var vpt = this.viewportTransform;
-//
-//     if (this.lastPosX && this.lastPosY) {
-//       vpt[4] += touch.clientX - this.lastPosX;
-//       vpt[5] += touch.clientY - this.lastPosY;
-//       this.requestRenderAll();
-//     }
-//
-//     this.lastPosX = touch.clientX;
-//     this.lastPosY = touch.clientY;
-//   }
-//   e.preventDefault();
-//   e.stopPropagation();
-// });
-//
-// // Resetting values when touch ends
-// canvas.on('touch:up', function(opt){
-//   this.isDragging = false;
-//   this.selection = true;
-//   this.lastPosX = null;
-//   this.lastPosY = null;
-// });
-//
-// // Handling zooming on touch using gesture
-// canvas.on('touch:gesture', function(opt) {
-//   if (opt.e.touches && opt.e.touches.length === 2) {
-//     var point = new fabric.Point(opt.e.touches[0].clientX, opt.e.touches[0].clientY);
-//     var scale = opt.self.scale;
-//
-//     var newZoom = scale * (1 + opt.e.scale);
-//     // Limiting the zoom level
-//     newZoom = Math.max(0.01, Math.min(20, newZoom));
-//     canvas.zoomToPoint(point, newZoom);
-//
-//     opt.e.preventDefault();
-//     opt.e.stopPropagation();
-//   }
-// });
+let activeObject;
+canvas.on('selection:created', () => {
+    activeObject = canvas.getActiveObject();
+})
+
+canvas.on('selection:updated', () => {
+    activeObject = canvas.getActiveObject();
+})
+
+canvas.on('selection:cleared', () => {
+    activeObject = undefined;
+})
+
 
 function onWindowResize() {
     canvas.setDimensions({width: window.innerWidth, height: window.innerHeight});
@@ -201,19 +210,19 @@ onWindowResize()
 
 // toolbar functions
 function bringToFront() {
-    canvas.bringToFront(canvas.getActiveObject());
+    canvas.bringToFront(activeObject);
 }
 function bringForward() {
-    canvas.bringForward(canvas.getActiveObject());
+    canvas.bringForward(activeObject);
 }
 function sendToBack() {
-    canvas.sendToBack(canvas.getActiveObject());
+    canvas.sendToBack(activeObject);
 }
 function sendBackwards() {
-    canvas.sendBackwards(canvas.getActiveObject());
+    canvas.sendBackwards(activeObject);
 }
 function clone() {
-    canvas.getActiveObject().clone(cloned => {
+    activeObject.clone(cloned => {
         canvas.discardActiveObject();
         cloned.set({
             left: cloned.left + 10,
@@ -235,36 +244,127 @@ function clone() {
 }
 
 function groupObjects() {
-    if (!canvas.getActiveObject()) {
+    if (!activeObject || activeObject.type !== 'activeSelection') {
       return;
     }
-    if (canvas.getActiveObject().type !== 'activeSelection') {
-      return;
-    }
-    canvas.getActiveObject().toGroup();
+    activeObject.toGroup();
     canvas.requestRenderAll();
 }
 function ungroupObjects() {
-    if (!canvas.getActiveObject()) {
+    if (!activeObject || activeObject.type !== 'group') {
       return;
     }
-    if (canvas.getActiveObject().type !== 'group') {
-      return;
-    }
-    canvas.getActiveObject().toActiveSelection();
+    activeObject.toActiveSelection();
     canvas.requestRenderAll();
 }
+let previousSelected;
+let paintControls = document.querySelector('#paint-controls');
+let brushSizeControl = document.querySelector('#brush-size')
+let brushTypeControls = document.querySelector('#brush-select')
+let brushColorPicker = document.querySelector('#brush-color')
+canvas.freeDrawingBrush.width = 20;
+function togglePaintMode() {
+    canvas.freeDrawingBrush.width = brushSizeControl.value
+    canvas.freeDrawingBrush.color = brushColorPicker.value
+    if (!canvas.isDrawingMode) {
+        // set up for drawing
+        paintControls.style.display = 'block'
+        canvas.isDrawingMode = true
+        let brushType = document.querySelector('input[name="brush"]:checked').value
+        canvas.freeDrawingBrush = (brushType === 'paint') ? new fabric.PencilBrush(canvas) : new fabric.EraserBrush(canvas);
+    } else {
+        // unset all the drawing stuff
+        paintControls.style.display = 'none'
+        canvas.isDrawingMode = false
+        if (previousSelected) {
+            previousSelected.set('erasable', false)
+            canvas.setActiveObject(previousSelected)
+        }
+    }
+    if (activeObject) {
+        activeObject.set('erasable', true)
+        previousSelected  = canvas.getActiveObject()
+    } else if (previousSelected) {
+        previousSelected.set('erasable', false)
+        canvas.setActiveObject(previousSelected)
+    }
+}
+brushSizeControl.addEventListener('input', e => {
+    canvas.freeDrawingBrush.width = e.target.value
+    canvas.freeDrawingBrush.color = brushColorPicker.value
+})
+brushTypeControls.addEventListener('change', e => {
+    canvas.freeDrawingBrush = (e.target.value === 'paint') ? new fabric.PencilBrush(canvas) : new fabric.EraserBrush(canvas);
+    canvas.freeDrawingBrush.width = brushSizeControl.value
+    canvas.freeDrawingBrush.color = brushColorPicker.value
+})
+brushColorPicker.addEventListener('input', e => {
+    canvas.freeDrawingBrush.color = e.target.value
+    canvas.freeDrawingBrush.width = brushSizeControl.value
+})
 
 function deleteObject() {
-    const activeObj = canvas.getActiveObject();
-    canvas.remove(activeObj);
-    if (activeObj && activeObj.type === 'activeSelection') {
-        const objects = activeObj.getObjects();
+    canvas.remove(activeObject);
+    if (activeObject && activeObject.type === 'activeSelection') {
+        const objects = activeObject.getObjects();
         objects.forEach(obj => {
             canvas.remove(obj);
         });
     }
     canvas.discardActiveObject();
+}
+
+function downloadImage() {
+    if (!canvas.getActiveObject()) {
+        alert("No object selected.");
+        return;
+    }
+
+    let activeObject = canvas.getActiveObject();
+
+    // Ensure canvas doesn't have unsaved changes
+    canvas.renderAll();
+
+    // Get the bounding rectangle of the active object
+    let br = activeObject.getBoundingRect();
+
+    // These coordinates assume the top-left of the canvas as (0, 0)
+    let left = br.left - activeObject.strokeWidth / 2;
+    let top = br.top - activeObject.strokeWidth / 2;
+    let width = br.width + activeObject.strokeWidth;
+    let height = br.height + activeObject.strokeWidth;
+    canvas.setBackgroundColor(
+        'rgba(0, 0, 0, 0)',
+        () => {
+            canvas.renderAll();
+            // Generate the image URL based on the bounding rectangle
+            let dataURL = canvas.toDataURL({
+                format: 'png',
+                left: left,
+                top: top,
+                width: width,
+                height: height
+            });
+            download(dataURL, 'imageweave.png');
+            canvas.setBackgroundColor(
+                {source: 'checker.png', repeat: 'repeat'},
+                () => {
+                    canvas.renderAll();
+                }
+            );
+        }
+    );
+}
+
+
+
+function download(dataurl, filename) {
+    let link = document.createElement("a");
+    link.href = dataurl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
 
 // sidebar functions
@@ -336,11 +436,7 @@ function handleImageFiles(files) {
   });
 }
 
-function toggleEraser() {
-    canvas.freeDrawingBrush = new fabric.EraserBrush(canvas);
-    canvas.freeDrawingBrush.width = 10;
-    canvas.isDrawingMode = !canvas.isDrawingMode
-}
+
 
 
 // floating toolbar functionality
@@ -375,12 +471,6 @@ function CenterCoord(){
 
 // separation
 function splitImage() {
-    const activeObject = canvas.getActiveObject();
-    if (!activeObject || activeObject.type !== 'image' && activeObject.type !== 'group') {
-        alert("No image or non-image object selected!");
-        return;
-    }
-
     const srcCanvas = document.createElement('canvas');
     const ctx = srcCanvas.getContext('2d');
     srcCanvas.width = activeObject.getScaledWidth();
@@ -428,8 +518,8 @@ function splitImage() {
             }
         }
 
-        canvas.remove(activeObject);
-
+        let AOLeft = activeObject.left
+        let AOTop = activeObject.top
         segments.forEach(segment => {
             const bounds = segment.reduce((acc, [x, y]) => ({
                 minX: Math.min(acc.minX, x),
@@ -459,20 +549,18 @@ function splitImage() {
 
             fabric.Image.fromURL(tempCanvas.toDataURL(), (newImg) => {
                 newImg.set({
-                    left: activeObject.left + bounds.minX,
-                    top: activeObject.top + bounds.minY,
-                    scaleX: activeObject.scaleX,
-                    scaleY: activeObject.scaleY,
+                    left: AOLeft + bounds.minX + 10,
+                    top: AOTop + bounds.minY + 10,
                 });
                 canvas.add(newImg);
                 canvas.renderAll();
             });
         });
+        canvas.remove(activeObject);
     }, {
         crossOrigin: 'anonymous'
     });
 }
-
 
 const worker = new Worker('worker.js', {
     type: 'module',
@@ -517,10 +605,9 @@ async function startDepthEstimation() {
         return;
     }
     currentImageOnCanvas = activeObject;
-    canvas.discardActiveObject()
-    // worker flow
     worker.postMessage({type: 'depth', data: activeObject.toDataURL({withoutTransform: true})})
     originalImageData = activeObject._element;
+    canvas.discardActiveObject()
 }
 
 function handleDepthResult(data) {
@@ -577,7 +664,10 @@ function updateImageBasedOnDepth(threshold) {
 
     for (let i = 0, len = currentDepthData.length; i < len; i++) {
         if (currentDepthData[i] < threshold) {
-            data[i * 4 + 3] = 0;
+            // data[i * 4] = 0;
+            // data[i * 4 + 1] = 0;
+            // data[i * 4 + 2] = 0;
+            data[i * 4 + 3] = 0; // alpha channel
         }
     }
     ctx.putImageData(imgData, 0, 0);
@@ -592,7 +682,6 @@ function updateImageBasedOnDepth(threshold) {
 let imageToSegment;
 let imageToSegmentOrigSrc;
 function startSegmentation() {
-    const activeObject = canvas.getActiveObject();
     if (!activeObject || activeObject.type !== 'image' && activeObject.type !== 'group') {
         alert("No image or non-image object selected!");
         return;
@@ -793,7 +882,6 @@ function reverseMask() {
 
 let imgToUpscale;
 function startUpscale() {
-    const activeObject = canvas.getActiveObject();
     if (!activeObject || activeObject.type !== 'image' && activeObject.type !== 'group') {
         alert("No image or non-image object selected!");
         return;
@@ -845,5 +933,155 @@ function addImageToCanvas(rawData) {
   imgElement.src = offCanvas.toDataURL();
 }
 
+let bucketMode = false
+let bucketModeButton = document.querySelector('#toggle-bucket')
+let bucketColor = [0, 0, 0, 0]
+let bucketThreshold = 20
+function toggleBucketMode() {
+    bucketMode = !bucketMode
+    bucketModeButton.textContent = bucketMode ? 'bucketmode on' : 'bucketmode off'
+    document.body.style.cursor = bucketMode ? 'crosshair' : 'auto'
+}
+
+let bucketColorPicker = document.querySelector('#bucket-color')
+bucketColorPicker.addEventListener('input', () => {
+    bucketColor = hexToRgba(bucketColorPicker.value)
+    bucketColor[3] = bucketAlphaPicker.value
+})
+
+let bucketThresholdPicker = document.querySelector('#bucket-threshold')
+bucketThresholdPicker.addEventListener('input', () => {
+    bucketThreshold = bucketThresholdPicker.value
+})
+
+let bucketAlphaPicker = document.querySelector('#bucket-alpha')
+bucketAlphaPicker.addEventListener('input', () => {
+    bucketColor[3] = bucketAlphaPicker.value
+})
+
+// function paintBucket(startX, startY) {
+//     const srcCanvas = document.createElement('canvas');
+//     const ctx = srcCanvas.getContext('2d');
+//     const width = activeObject.getScaledWidth();
+//     const height = activeObject.getScaledHeight();
+//     srcCanvas.width = width;
+//     srcCanvas.height = height;
+//
+//     activeObject.cloneAsImage((clonedImg) => {
+//         ctx.drawImage(clonedImg.getElement(), 0, 0, width, height);
+//         const imageData = ctx.getImageData(0, 0, width, height);
+//         const data = imageData.data;
+//
+//         const targetColor = getColorAtPosition(startX, startY, data, width);
+//         const fillColor = bucketColor;
+//         const visited = new Uint8Array(width * height);
+//
+//         function getColorAtPosition(x, y, data, width) {
+//             const index = (y * width + x) * 4;
+//             return data.slice(index, index + 4);  // returns [r, g, b, a]
+//         }
+//
+//         function colorsMatch(color1, color2, tolerance) {
+//             return Math.abs(color1[0] - color2[0]) <= tolerance &&
+//                 Math.abs(color1[1] - color2[1]) <= tolerance &&
+//                 Math.abs(color1[2] - color2[2]) <= tolerance &&
+//                 Math.abs(color1[3] - color2[3]) <= tolerance;
+//         }
+//
+//         function floodFill(x, y) {
+//             const queue = [[x, y]];
+//             while (queue.length) {
+//                 const [currentX, currentY] = queue.shift();  // Dequeue
+//                 if (currentX < 0 || currentX >= width || currentY < 0 || currentY >= height) continue;
+//                 const currentIndex = (currentY * width + currentX) * 4;
+//                 if (visited[currentY * width + currentX]) continue;
+//                 const currentColor = getColorAtPosition(currentX, currentY, data, width);
+//                 if (!colorsMatch(currentColor, targetColor, bucketThreshold)) continue;
+//
+//                 // Paint the color
+//                 data[currentIndex] = fillColor[0];
+//                 data[currentIndex + 1] = fillColor[1];
+//                 data[currentIndex + 2] = fillColor[2];
+//                 data[currentIndex + 3] = fillColor[3];
+//                 visited[currentY * width + currentX] = 1;
+//
+//                 // Enqueue all 4 directional neighbors
+//                 queue.push([currentX + 1, currentY]);
+//                 queue.push([currentX - 1, currentY]);
+//                 queue.push([currentX, currentY + 1]);
+//                 queue.push([currentX, currentY - 1]);
+//             }
+//         }
+//
+//         // Start flood fill from the given point
+//         floodFill(startX, startY);
+//         ctx.putImageData(imageData, 0, 0);
+//
+//         // Update the fabric image
+//         fabric.Image.fromURL(srcCanvas.toDataURL(), (newImg) => {
+//             newImg.set({
+//                 left: activeObject.left,
+//                 top: activeObject.top,
+//                 scaleX: activeObject.scaleX,
+//                 scaleY: activeObject.scaleY,
+//                 angle: activeObject.angle
+//             });
+//             canvas.remove(activeObject);
+//             canvas.add(newImg);
+//             canvas.setActiveObject(newImg);
+//             canvas.renderAll();
+//         });
+//     }, {
+//         crossOrigin: 'anonymous'
+//     });
+// }
+
+function getColorAtPosition(x, y, data, width) {
+    const index = (y * width + x) * 4;
+    return data.slice(index, index + 4);  // returns [r, g, b, a]
+}
+
+const ffWorker = new Worker('floodfill.js');
+function paintBucket(startX, startY) {
+    const srcCanvas = document.createElement('canvas');
+    const ctx = srcCanvas.getContext('2d');
+    const width = activeObject.getScaledWidth();
+    const height = activeObject.getScaledHeight();
+    srcCanvas.width = width;
+    srcCanvas.height = height;
+
+    activeObject.cloneAsImage((clonedImg) => {
+        ctx.drawImage(clonedImg.getElement(), 0, 0, width, height);
+        const imageData = ctx.getImageData(0, 0, width, height);
+
+        ffWorker.postMessage({
+            imageData: imageData,
+            startX, startY,
+            fillColor: bucketColor, // Assume global or passed
+            targetColor: getColorAtPosition(startX, startY, imageData.data, width),
+            width, height,
+            bucketThreshold: bucketThreshold // Assume global or passed
+        });
+
+        ffWorker.onmessage = function(e) {
+            ctx.putImageData(e.data.imageData, 0, 0);
+            fabric.Image.fromURL(srcCanvas.toDataURL(), (newImg) => {
+                newImg.set({ left: activeObject.left, top: activeObject.top, scaleX: activeObject.scaleX, scaleY: activeObject.scaleY, angle: activeObject.angle });
+                canvas.remove(activeObject);
+                canvas.add(newImg);
+                canvas.setActiveObject(newImg);
+                canvas.renderAll();
+            });
+        };
+    }, { crossOrigin: 'anonymous' });
+}
+
+function hexToRgba(hex) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const a = 255; // opaque
+    return [r, g, b, a];
+}
 </script>
 </html>
