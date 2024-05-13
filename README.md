@@ -9,7 +9,7 @@
   - [x] from url
   - [x] from clipboard
   - [x] drag and drop
-  - x ] upload
+  - [x] upload
 - [ ] segmentation
 - [ ] depth-based editing
   - [x] bg removal
