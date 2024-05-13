@@ -5,14 +5,14 @@
 ## Pic editing tool feature list - MVP
 
 ### free 
-- [ ] add images 
-  - [ ] from url
-  - [ ] from clipboard
-  - [ ] drag and drop
-  - [ ] upload
+- [x] add images 
+  - [x] from url
+  - [x] from clipboard
+  - [x] drag and drop
+  - x ] upload
 - [ ] segmentation
 - [ ] depth-based editing
-  - [ ] bg removal
+  - [x] bg removal
   - [ ] filters (blur, brightness, etc)
 
 ### paid
