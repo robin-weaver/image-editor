@@ -253,11 +253,33 @@ function download(dataurl, filename) {
 
 const imageUrlInput = document.getElementById('imageUrl');
 function addImageFromURL() {
-    const imageURL = imageUrlInput.value
-    fabric.Image.fromURL(imageURL, function(oImg) {
-      canvas.add(oImg);
-    });
-    imageUrlInput.value = ''
+    const imageURL = imageUrlInput.value;
+
+    fetch(imageURL, { mode: 'cors' })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.blob();
+        })
+        .then(blob => {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.src = event.target.result;
+
+                img.onload = function() {
+                    const imgInstance = new fabric.Image(img);
+                    canvas.add(imgInstance);
+                };
+            };
+            reader.readAsDataURL(blob);
+        })
+        .catch(error => {
+            console.error('Error fetching image:', error);
+        });
+
+    imageUrlInput.value = '';
 }
 imageUrlInput.addEventListener('paste', (event) => {
   const clipboardData = event.clipboardData;
