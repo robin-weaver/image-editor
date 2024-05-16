@@ -493,8 +493,6 @@ worker.addEventListener('message', e => {
     } else if (type === 'decode_result') {
         decodeResultArray.push(data)
         handleDecodeResult();
-    } else if (type === 'upscale_result') {
-        handleUpscaleResult(data)
     }
 })
 
@@ -783,29 +781,6 @@ function reverseMask() {
     }
 }
 
-
-let imgToUpscale;
-function startUpscale() {
-    if (!activeObject || activeObject.type !== 'image' && activeObject.type !== 'group') {
-        alert("No image or non-image object selected!");
-        return;
-    }
-    imgToUpscale = activeObject
-    if (imgToUpscale.width > 500 || imgToUpscale.height > 500) {
-        alert('Maximum upscale input is 500x500!')
-        return;
-    }
-    worker.postMessage({
-        type: 'upscale',
-        data: imgToUpscale.toDataURL({withoutTransform: true})
-    })
-}
-
-
-function handleUpscaleResult(result) {
-    addImageToCanvas(result)
-}
-
 function addImageToCanvas(rawData) {
   const offCanvas = document.createElement('canvas');
   offCanvas.width = rawData.width;
@@ -909,4 +884,108 @@ function hexToRgba(hex) {
     const b = parseInt(hex.slice(5, 7), 16);
     const a = 255; // opaque
     return [r, g, b, a];
+}
+
+
+const Base64Prefix = "data:application/pdf;base64,";
+function getPdfHandler() {
+    // pdfjsLib should be available globally since we've loaded the script in HTML
+    return pdfjsLib;
+}
+
+function readBlob(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.addEventListener('load', () => resolve(reader.result));
+        reader.addEventListener('error', reject);
+        reader.readAsDataURL(blob);
+    });
+}
+
+async function printPDF(pdfData, pages) {
+    const pdfjsLib = await getPdfHandler();
+    pdfData = pdfData instanceof Blob ? await readBlob(pdfData) : pdfData;
+    const data = atob(pdfData.startsWith(Base64Prefix) ? pdfData.substring(Base64Prefix.length) : pdfData);
+    const loadingTask = pdfjsLib.getDocument({ data });
+    return loadingTask.promise.then(async (pdf) => {
+        const numPages = pdf.numPages;
+        const pageCanvases = await Promise.all(
+            [...Array(numPages).keys()].map(async i => {
+                const pageNumber = i + 1;
+                if (pages && pages.indexOf(pageNumber) == -1) {
+                    return null;
+                }
+
+                const page = await pdf.getPage(pageNumber);
+                const viewport = page.getViewport({ scale: 2 }); // Default scale to render at original resolution
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+                await page.render(renderContext).promise;
+                return canvas;
+            })
+        );
+        return pageCanvases.filter(Boolean); // Remove any null elements
+    });
+}
+
+async function pdfToImage(pdfData, fabricCanvas) {
+    const canvases = await printPDF(pdfData);
+    const fabricImages = await Promise.all(
+        canvases.map(async c => {
+            const img = new fabric.Image(c, { scaleX: 1, scaleY: 1 });
+            fabricCanvas.add(img);
+            fabricCanvas.requestRenderAll();
+        })
+    );
+    return fabricImages;
+}
+
+
+document.querySelector('#file-input').addEventListener('change', async (e) => {
+    canvas.requestRenderAll();
+    await Promise.all(pdfToImage(e.target.files[0], canvas));
+});
+
+
+let textBox = document.querySelector('#text-input')
+function addText() {
+    let textToAdd = textBox.value
+    if (!textToAdd) return
+    let coords = CenterCoord()
+    let text = new fabric.Text(textToAdd, {
+        left: coords.x,
+        top: coords.y
+    })
+    canvas.add(text)
+    textBox.value = ''
+    canvas.setActiveObject(text)
+    updateText()
+}
+
+let fontSelect = document.querySelector('#font-select')
+let alignSelect = document.querySelector('#align-select')
+let lineHeightSelect = document.querySelector('#lineHeight-select')
+let fillColorSelect = document.querySelector('#fillColor-select')
+let strokeColorSelect = document.querySelector('#strokeColor-select')
+let strokeWidthSelect = document.querySelector('#strokeWidth-select')
+let highlightColorSelect = document.querySelector('#highlightColor-select')
+let highlightEnabled = document.querySelector('#highlight-enabled')
+function updateText() {
+    if (!activeObject) return
+    activeObject.set({
+        fontFamily: fontSelect.value,
+        textAlign: alignSelect.value,
+        lineHeight: lineHeightSelect.value,
+        fill: fillColorSelect.value,
+        stroke: strokeColorSelect.value,
+        strokeWidth: strokeWidthSelect.value,
+        textBackgroundColor: highlightEnabled.checked ? highlightColorSelect.value : null
+    })
+    canvas.requestRenderAll()
 }

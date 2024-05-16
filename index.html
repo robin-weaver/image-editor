@@ -63,10 +63,10 @@
     <button onclick="deleteObject()"><i class="material-icons">delete</i></button>
     <button onclick="startDepthEstimation()"><i class="material-icons">height</i></button>
     <button onclick="startSegmentation()"><i class="material-icons">theater_comedy</i></button>
-    <button onclick="startUpscale()"><i class="material-icons">open_in_full</i></button>
     <button onclick="downloadImage()"><i class="material-icons">save_alt</i></button>
 </div>
 <div id="sidebar">
+    <input type="file" id="file-input" />
       <div class="add-image-options">
         <input type="text" id="imageUrl" placeholder="Paste images or URL">
         <button onclick="addImageFromURL()"><i class="material-icons">add_circle_outline</i></button>
@@ -102,6 +102,36 @@
             <input type="range" min="0" max="255" value="255" id="bucket-alpha">
         </label>
     </div>
+    <textarea id="text-input"></textarea>
+    <button onclick="addText()">Add Text</button>
+    <div id="text-menu" style="display: flex; flex-direction: column">
+        <label for="font-select">Font</label>
+        <select name="font" id="font-select" oninput="updateText()">
+            <option value="Times New Roman">Times New Roman</option>
+            <option value="Arial">Arial</option>
+            <option value="Courier New">Courier New</option>
+            <option value="cursive">Cursive</option>
+            <option value="Impact">Impact</option>
+        </select>
+        <label for="align-select">Alignment</label>
+        <select name="align" id="align-select" oninput="updateText()">
+            <option value="left">Left</option>
+            <option value="center">Center</option>
+            <option value="right">Right</option>
+        </select>
+        <label for="lineHeight-select">Line Height</label>
+        <input name="lineHeight" id="lineHeight-select" type="range" value="1" min="1" max="5" oninput="updateText()">
+        <label for="fillColor-select">Fill Color</label>
+        <input name="fillColor" id="fillColor-select" type="color" oninput="updateText()">
+        <label for="strokeColor-select">Stroke Color</label>
+        <input name="strokeColor" id="strokeColor-select" type="color" oninput="updateText()">
+        <label for="strokeWidth-select">Stroke Width</label>
+        <input name="strokeWidth" id="strokeWidth-select" type="range" min="0" max="10" value="1" oninput="updateText()">
+        <label for="highlight-enabled">Highlight enabled?</label>
+        <input type="checkbox" id="highlight-enabled" oninput="updateText()">
+        <label for="highlightColor-select">Highlight Color</label>
+        <input name="highlightColor" id="highlightColor-select" type="color" oninput="updateText()">
+    </div>
 </div>
 <div id="depthControlPanel" style="position: absolute; display: none;">
     <input type="range" id="depthSlider" min="0" max="2550" value="0">
@@ -115,6 +145,7 @@
 </div>
 </body>
 <script src="fabric.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
 <script defer src="app.js"></script>
 <img src="checker.png" style="display: none">
 </html>

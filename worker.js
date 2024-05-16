@@ -40,10 +40,7 @@ let segmentModel, maskProcessor, depthPipe;
 
 self.onmessage = async (e) => {
     const { type, data } = e.data;
-    console.log(type, ' || ')
-    // const [model, processor, pipeline] = await transformersSingleton.getInstance();
     if (!ready) {
-        // Indicate that we are ready to accept requests
         ready = true;
     }
 
