@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Editor</title>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
+<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 <style>
     body {
         margin: 0;
@@ -132,6 +132,8 @@
         <label for="highlightColor-select">Highlight Color</label>
         <input name="highlightColor" id="highlightColor-select" type="color" oninput="updateText()">
     </div>
+    <button onclick="runOCR()">Img 2 Txt</button>
+    <label for="ocr-output">Text from image:</label><textarea style="max-width: 200px" id="ocr-output"></textarea>
 </div>
 <div id="depthControlPanel" style="position: absolute; display: none;">
     <input type="range" id="depthSlider" min="0" max="2550" value="0">
@@ -145,7 +147,9 @@
 </div>
 </body>
 <script src="fabric.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
 <script defer src="app.js"></script>
 <img src="checker.png" style="display: none">
+<dialog style="padding: 18px" id="info-dialog"></dialog>
 </html>

@@ -989,3 +989,32 @@ function updateText() {
     })
     canvas.requestRenderAll()
 }
+
+let OCRWorker;
+
+(async () => {
+    OCRWorker = await Tesseract.createWorker('eng', 1, {
+        workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js",
+        logger: function(m) {
+          console.log(m.progress);
+        }
+    })
+    console.log('OCR init')
+})()
+
+
+async function runOCR() {
+    if (!activeObject) {
+        console.log('no selection')
+      return;
+    }
+    console.log('running ocr')
+    let res = await OCRWorker.recognize(activeObject.toDataURL())
+    console.log(res.data.text)
+    let dialog = document.querySelector('#info-dialog')
+    dialog.innerHTML = `
+    <textarea style="height: 240px; width: 240px">${res.data.text}</textarea>`
+    dialog.showModal()
+    document.querySelector('#ocr-output').value = res.data.text
+    console.log('ocr done')
+}
