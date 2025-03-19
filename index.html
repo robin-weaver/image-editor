@@ -3,153 +3,439 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Editor</title>
+    <title>ImageWeave - Neo-Brutalist Editor</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap">
+    <style>
+        :root {
+            --primary: #000000;
+            --secondary: #ff3e00;
+            --text: #111111;
+            --bg: #ffffff;
+            --accent: #3822ff;
+            --gray: #f1f1f1;
+            --dark-gray: #a0a0a0;
+            --shadow-color: rgba(0, 0, 0, 0.25);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            background-color: var(--gray);
+            color: var(--text);
+        }
+
+        button {
+            background-color: var(--bg);
+            border: 2px solid var(--primary);
+            box-shadow: 4px 4px 0 var(--shadow-color);
+            padding: 8px 12px;
+            margin: 4px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background-color: var(--gray);
+        }
+
+        button:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 var(--shadow-color);
+        }
+
+        button i {
+            display: block;
+            font-size: 20px;
+        }
+
+        input[type="text"],
+        input[type="color"],
+        input[type="range"],
+        textarea,
+        select {
+            border: 2px solid var(--primary);
+            padding: 8px;
+            margin: 4px 0;
+            background-color: var(--bg);
+            box-shadow: 3px 3px 0 var(--shadow-color);
+            font-family: 'Inter', sans-serif;
+        }
+
+        input[type="color"] {
+            height: 40px;
+        }
+
+        select {
+            height: 40px;
+        }
+
+        label {
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        /* Canvas container */
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #canvas {
+            display: block;
+        }
+
+        /* Toolbar */
+        #toolbar {
+            position: absolute;
+            left: 20px;
+            top: 20px;
+            background-color: var(--bg);
+            padding: 12px;
+            border: 3px solid var(--primary);
+            box-shadow: 6px 6px 0 var(--shadow-color);
+            display: flex;
+            flex-wrap: wrap;
+            max-width: 350px;
+            z-index: 100;
+        }
+
+        #grab-handle {
+            cursor: grab;
+            width: 20px;
+            height: 26px;
+            background-color: var(--gray);
+            margin-right: 8px;
+            border: 2px solid var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #grab-handle:active {
+            cursor: grabbing;
+        }
+
+        /* Sidebar */
+        #sidebar {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 280px;
+            height: 100vh;
+            background-color: var(--bg);
+            border-left: 3px solid var(--primary);
+            box-shadow: -6px 0 0 var(--shadow-color);
+            overflow-y: auto;
+            z-index: 100;
+        }
+
+        #sidebar h3 {
+            font-size: 16px;
+            text-transform: uppercase;
+            margin: 16px 0 8px 0;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 4px;
+        }
+
+        #sidebar > button {
+            margin: 8px 0;
+        }
+
+        /* Dropzone */
+        #dropzone {
+            width: 100%;
+            height: 100px;
+            border: 3px dashed var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 12px 0;
+            background-color: var(--gray);
+            transition: background-color 0.3s;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        #dropzone.drag-over {
+            background-color: #e0e0e0;
+            border-color: var(--accent);
+        }
+
+        /* Controls panels */
+        .controls-panel {
+            border: 2px solid var(--primary);
+            padding: 12px;
+            margin: 8px 0;
+            background-color: var(--gray);
+            box-shadow: 4px 4px 0 var(--shadow-color);
+        }
+
+        #paint-controls,
+        #bucket-controls,
+        #text-menu {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #paint-controls fieldset {
+            border: 2px solid var(--primary);
+            margin-top: 10px;
+            padding: 8px;
+        }
+
+        #paint-controls legend {
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 12px;
+            padding: 0 4px;
+        }
+
+        /* Floating panels */
+        #depthControlPanel,
+        #segment-controls {
+            position: absolute;
+            display: none;
+            background-color: var(--bg);
+            border: 3px solid var(--primary);
+            box-shadow: 6px 6px 0 var(--shadow-color);
+            padding: 12px;
+            z-index: 200;
+        }
+
+        /* Dialog */
+        dialog {
+            border: 3px solid var(--primary);
+            background-color: var(--bg);
+            box-shadow: 8px 8px 0 var(--shadow-color);
+            padding: 20px !important;
+        }
+
+        dialog::backdrop {
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        /* App title */
+        .app-title {
+            font-weight: 900;
+            font-size: 24px;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+            color: var(--primary);
+            letter-spacing: -0.05em;
+            border-bottom: 3px solid var(--primary);
+            padding-bottom: 8px;
+        }
+
+        /* Section separator */
+        .section-separator {
+            height: 3px;
+            background-color: var(--primary);
+            margin: 16px 0;
+        }
+
+        /* Modal */
+        #info-dialog textarea {
+            width: 100%;
+            height: 240px;
+            border: 2px solid var(--primary);
+            padding: 12px;
+            font-family: 'Inter', monospace;
+            box-shadow: 4px 4px 0 var(--shadow-color);
+            margin-top: 12px;
+        }
+    </style>
 </head>
-<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
-<style>
-    body {
-        margin: 0;
-    }
-    #toolbar {
-        position: absolute;
-        left: 200px;
-        top: 200px;
-        background-color: #f1f1f1;
-        padding: 5px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        display: flex; /* Allows horizontal button placement */
-    }
-    #grab-handle {
-        cursor: grab; /* Indicate grab cursor on hover */
-        width: 20px;
-        height: 26px;
-        background-color: #eee;
-        margin-right: 8px;
-        user-select: none;
-    }
-    #sidebar {
-        display: flex;
-        flex-direction: column;
-        padding-top: 20px;
-        position: fixed;
-        top: 0;
-        right: 0;
-        /* Set your desired width here */
-        width: 200px;
-        /*height: 100vh;  */
-        background-color: #a4a4a4;  /* Optional background color */
-    }
-    #dropzone {
-        width: 100%;
-        height: 100px;
-        border: 2px solid slategrey;
-    }
-
-</style>
 <body>
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
 
-<canvas id="canvas"></canvas>
-<div id="toolbar">
-    <div id="grab-handle" class="material-icons">drag_indicator</div>
-    <button onclick="bringToFront()"><i class="material-icons">keyboard_double_arrow_up</i></button>
-    <button onclick="bringForward()"><i class="material-icons">keyboard_arrow_up</i></button>
-    <button onclick="sendToBack()"><i class="material-icons">keyboard_double_arrow_down</i></button>
-    <button onclick="sendBackwards()"><i class="material-icons">keyboard_arrow_down</i></button>
-    <button onclick="clone()"><i class="material-icons">control_point_duplicate</i></button>
-    <button onclick="groupObjects()"><i class="material-icons">join_full</i></button>
-    <button onclick="ungroupObjects()"><i class="material-icons">join_inner</i></button>
-    <button onclick="splitImage()"><i class="material-icons">call_split</i></button>
-    <button onclick="deleteObject()"><i class="material-icons">delete</i></button>
-    <button onclick="startDepthEstimation()"><i class="material-icons">height</i></button>
-    <button onclick="startSegmentation()"><i class="material-icons">theater_comedy</i></button>
-    <button onclick="downloadImage()"><i class="material-icons">save_alt</i></button>
-</div>
-<div id="sidebar">
-    <input type="file" id="file-input" />
-      <div class="add-image-options">
-        <input type="text" id="imageUrl" placeholder="Paste images or URL">
-        <button onclick="addImageFromURL()"><i class="material-icons">add_circle_outline</i></button>
-        <div id="dropzone">Drag and drop images here or</div>
-        <button type="button" id="selectImageButton">upload image(s)</button>
-      </div>
-    <button onclick="clearCanvas()">Clear Canvas</button>
-    <button onclick="togglePaintMode()"><i class="material-icons">brush</i></button>
-    <div id="paint-controls" style="display: none">
-        <label for="brush-size">Brush Size</label><input id="brush-size" type="range" min="1" max="50">
-        <label for="brush-color">Color</label><input id="brush-color" type="color">
-    <fieldset id="brush-select">
-      <legend>Brush type:</legend>
-      <div>
-        <input type="radio" id="paint" name="brush" value="paint" checked />
-        <label for="paint">Paint</label>
-      </div>
-      <div>
-        <input type="radio" id="erase" name="brush" value="erase" />
-        <label for="erase">Erase</label>
-      </div>
-    </fieldset>
+    <div id="toolbar">
+        <div id="grab-handle" class="material-icons">drag_indicator</div>
+        <button onclick="bringToFront()" title="Bring to Front"><i class="material-icons">keyboard_double_arrow_up</i></button>
+        <button onclick="bringForward()" title="Bring Forward"><i class="material-icons">keyboard_arrow_up</i></button>
+        <button onclick="sendToBack()" title="Send to Back"><i class="material-icons">keyboard_double_arrow_down</i></button>
+        <button onclick="sendBackwards()" title="Send Backwards"><i class="material-icons">keyboard_arrow_down</i></button>
+        <button onclick="clone()" title="Clone"><i class="material-icons">control_point_duplicate</i></button>
+        <button onclick="groupObjects()" title="Group"><i class="material-icons">join_full</i></button>
+        <button onclick="ungroupObjects()" title="Ungroup"><i class="material-icons">join_inner</i></button>
+        <button onclick="splitImage()" title="Split Image"><i class="material-icons">call_split</i></button>
+        <button onclick="deleteObject()" title="Delete"><i class="material-icons">delete</i></button>
+        <button onclick="startDepthEstimation()" title="Depth Estimation"><i class="material-icons">height</i></button>
+        <button onclick="startSegmentation()" title="Segmentation"><i class="material-icons">theater_comedy</i></button>
+        <button onclick="downloadImage()" title="Download"><i class="material-icons">save_alt</i></button>
     </div>
-    <button onclick="toggleBucketMode()" id="toggle-bucket">Bucket</button>
-    <div id="bucket-controls" style="display: flex; flex-direction: column">
-        <label>Threshold
+
+    <div id="sidebar">
+        <div class="app-title">ImageWeave</div>
+
+        <h3>Import</h3>
+        <input type="file" id="file-input" style="display: none;" />
+        <div class="add-image-options">
+            <input type="text" id="imageUrl" placeholder="Paste images or URL">
+            <button onclick="addImageFromURL()"><i class="material-icons">add_circle_outline</i></button>
+            <div id="dropzone">Drag and drop images here</div>
+            <button type="button" id="selectImageButton">Upload Image(s)</button>
+        </div>
+
+        <button onclick="clearCanvas()">Clear Canvas</button>
+
+        <div class="section-separator"></div>
+
+        <h3>Tools</h3>
+        <button onclick="togglePaintMode()"><i class="material-icons">brush</i> Paint</button>
+        <div id="paint-controls" class="controls-panel" style="display: none">
+            <label for="brush-size">Brush Size</label>
+            <input id="brush-size" type="range" min="1" max="50">
+            <label for="brush-color">Color</label>
+            <input id="brush-color" type="color">
+            <fieldset id="brush-select">
+                <legend>Brush Type</legend>
+                <div>
+                    <input type="radio" id="paint" name="brush" value="paint" checked />
+                    <label for="paint">Paint</label>
+                </div>
+                <div>
+                    <input type="radio" id="erase" name="brush" value="erase" />
+                    <label for="erase">Erase</label>
+                </div>
+            </fieldset>
+        </div>
+
+        <button onclick="toggleBucketMode()" id="toggle-bucket"><i class="material-icons">format_color_fill</i> Bucket</button>
+        <div id="bucket-controls" class="controls-panel">
+            <label for="bucket-threshold">Threshold</label>
             <input type="range" min="0" max="254" value="20" id="bucket-threshold">
-        </label>
-        <label>Color
+            <label for="bucket-color">Color</label>
             <input type="color" id="bucket-color">
-        </label>
-        <label>Alpha
+            <label for="bucket-alpha">Alpha</label>
             <input type="range" min="0" max="255" value="255" id="bucket-alpha">
-        </label>
+        </div>
+
+        <div class="section-separator"></div>
+
+        <h3>Text</h3>
+        <textarea id="text-input" placeholder="Enter text here..."></textarea>
+        <button onclick="addText()">Add Text</button>
+        <div id="text-menu" class="controls-panel">
+            <label for="font-select">Font</label>
+            <select name="font" id="font-select" oninput="updateText()">
+                <option value="Inter">Inter</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Arial">Arial</option>
+                <option value="Courier New">Courier New</option>
+                <option value="cursive">Cursive</option>
+                <option value="Impact">Impact</option>
+            </select>
+            <label for="align-select">Alignment</label>
+            <select name="align" id="align-select" oninput="updateText()">
+                <option value="left">Left</option>
+                <option value="center">Center</option>
+                <option value="right">Right</option>
+            </select>
+            <label for="lineHeight-select">Line Height</label>
+            <input name="lineHeight" id="lineHeight-select" type="range" value="1" min="1" max="5" oninput="updateText()">
+            <label for="fillColor-select">Fill Color</label>
+            <input name="fillColor" id="fillColor-select" type="color" oninput="updateText()">
+            <label for="strokeColor-select">Stroke Color</label>
+            <input name="strokeColor" id="strokeColor-select" type="color" oninput="updateText()">
+            <label for="strokeWidth-select">Stroke Width</label>
+            <input name="strokeWidth" id="strokeWidth-select" type="range" min="0" max="10" value="1" oninput="updateText()">
+            <div style="display: flex; align-items: center; margin-top: 8px;">
+                <input type="checkbox" id="highlight-enabled" oninput="updateText()" style="margin-right: 8px;">
+                <label for="highlight-enabled">Highlight Text</label>
+            </div>
+            <label for="highlightColor-select">Highlight Color</label>
+            <input name="highlightColor" id="highlightColor-select" type="color" oninput="updateText()">
+        </div>
+
+        <div class="section-separator"></div>
+
+        <h3>OCR</h3>
+        <button onclick="runOCR()"><i class="material-icons">text_format</i> Image to Text</button>
+        <label for="ocr-output">Extracted Text:</label>
+        <textarea id="ocr-output" style="height: 100px;"></textarea>
+
+        <div id="shape-eraser-controls">
+          <button id="toggle-shape-eraser" onclick="toggleShapeEraserMode()">Shape Eraser: OFF</button>
+          <div class="shape-types">
+            <button id="shape-circle" class="shape-type-btn active" onclick="setShapeType('circle')">
+              <i class="material-icons">radio_button_unchecked</i>
+            </button>
+            <button id="shape-ellipse" class="shape-type-btn" onclick="setShapeType('ellipse')">
+              <i class="material-icons">panorama_fish_eye</i>
+            </button>
+            <button id="shape-rect" class="shape-type-btn" onclick="setShapeType('rect')">
+              <i class="material-icons">crop_square</i>
+            </button>
+            <button id="shape-triangle" class="shape-type-btn" onclick="setShapeType('triangle')">
+              <i class="material-icons">change_history</i>
+            </button>
+            <button id="shape-polygon" class="shape-type-btn" onclick="setShapeType('polygon')">
+              <i class="material-icons">star_outline</i>
+            </button>
+          </div>
+          <style>
+            .shape-types {
+              display: flex;
+              justify-content: space-between;
+              margin-top: 5px;
+            }
+            .shape-type-btn {
+              width: 32px;
+              height: 32px;
+              padding: 0;
+              margin: 2px;
+            }
+            .shape-type-btn.active {
+              background-color: #007bff;
+              color: white;
+            }
+          </style>
+        </div>
     </div>
-    <textarea id="text-input"></textarea>
-    <button onclick="addText()">Add Text</button>
-    <div id="text-menu" style="display: flex; flex-direction: column">
-        <label for="font-select">Font</label>
-        <select name="font" id="font-select" oninput="updateText()">
-            <option value="Times New Roman">Times New Roman</option>
-            <option value="Arial">Arial</option>
-            <option value="Courier New">Courier New</option>
-            <option value="cursive">Cursive</option>
-            <option value="Impact">Impact</option>
-        </select>
-        <label for="align-select">Alignment</label>
-        <select name="align" id="align-select" oninput="updateText()">
-            <option value="left">Left</option>
-            <option value="center">Center</option>
-            <option value="right">Right</option>
-        </select>
-        <label for="lineHeight-select">Line Height</label>
-        <input name="lineHeight" id="lineHeight-select" type="range" value="1" min="1" max="5" oninput="updateText()">
-        <label for="fillColor-select">Fill Color</label>
-        <input name="fillColor" id="fillColor-select" type="color" oninput="updateText()">
-        <label for="strokeColor-select">Stroke Color</label>
-        <input name="strokeColor" id="strokeColor-select" type="color" oninput="updateText()">
-        <label for="strokeWidth-select">Stroke Width</label>
-        <input name="strokeWidth" id="strokeWidth-select" type="range" min="0" max="10" value="1" oninput="updateText()">
-        <label for="highlight-enabled">Highlight enabled?</label>
-        <input type="checkbox" id="highlight-enabled" oninput="updateText()">
-        <label for="highlightColor-select">Highlight Color</label>
-        <input name="highlightColor" id="highlightColor-select" type="color" oninput="updateText()">
+
+    <div id="depthControlPanel">
+        <h3>Depth Control</h3>
+        <input type="range" id="depthSlider" min="0" max="2550" value="0">
+        <button onclick="confirmDepth()">Confirm</button>
     </div>
-    <button onclick="runOCR()">Img 2 Txt</button>
-    <label for="ocr-output">Text from image:</label><textarea style="max-width: 200px" id="ocr-output"></textarea>
-</div>
-<div id="depthControlPanel" style="position: absolute; display: none;">
-    <input type="range" id="depthSlider" min="0" max="2550" value="0">
-    <button onclick="confirmDepth()">Confirm</button>
-</div>
-<div id="segment-controls" style="position: absolute; display: none">
-    <button id="confirm-segment" onclick="confirmSegmentation()">Confirm</button>
-    <button id="switch-selecting" onclick="switchSegmentationMode()">Selecting</button>
-    <button id="remove-point" disabled>Delete last point</button>
-    <button onclick="reverseMask()">Reverse mask</button>
-</div>
+
+    <div id="segment-controls">
+        <h3>Segmentation</h3>
+        <button id="confirm-segment" onclick="confirmSegmentation()">Confirm</button>
+        <button id="switch-selecting" onclick="switchSegmentationMode()">Selecting</button>
+        <button id="remove-point" disabled>Delete Last Point</button>
+        <button onclick="reverseMask()">Reverse Mask</button>
+    </div>
+
+    <dialog id="info-dialog"></dialog>
+
+    <script src="fabric.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
+    <script defer src="app.js"></script>
+    <img src="checker.png" style="display: none">
 </body>
-<script src="fabric.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
-<script defer src="app.js"></script>
-<img src="checker.png" style="display: none">
-<dialog style="padding: 18px" id="info-dialog"></dialog>
 </html>

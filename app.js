@@ -1018,3 +1018,441 @@ async function runOCR() {
     document.querySelector('#ocr-output').value = res.data.text
     console.log('ocr done')
 }
+
+
+// High Quality Shape Eraser Implementation
+let isShapeEraserMode = false;
+let currentShapeType = 'circle';
+let shapeEraserStartPoint = null;
+let tempShapeEraserObject = null;
+
+function toggleShapeEraserMode() {
+    isShapeEraserMode = !isShapeEraserMode;
+    document.getElementById('toggle-shape-eraser').textContent = isShapeEraserMode ? 'Shape Eraser: ON' : 'Shape Eraser: OFF';
+
+    if (isShapeEraserMode) {
+        // Disable other modes
+        if (canvas.isDrawingMode) togglePaintMode();
+        if (bucketMode) toggleBucketMode();
+
+        // Set cursor
+        document.body.style.cursor = 'crosshair';
+
+        // Add mouse event listeners for shape drawing
+        canvas.on('mouse:down', startShapeEraser);
+        canvas.on('mouse:move', drawShapeEraser);
+        canvas.on('mouse:up', endShapeEraser);
+    } else {
+        // Reset cursor
+        document.body.style.cursor = 'default';
+
+        // Remove mouse event listeners
+        canvas.off('mouse:down', startShapeEraser);
+        canvas.off('mouse:move', drawShapeEraser);
+        canvas.off('mouse:up', endShapeEraser);
+
+        // Remove temporary shape if it exists
+        if (tempShapeEraserObject) {
+            canvas.remove(tempShapeEraserObject);
+            tempShapeEraserObject = null;
+        }
+    }
+}
+
+function setShapeType(type) {
+    currentShapeType = type;
+    const shapeButtons = document.querySelectorAll('.shape-type-btn');
+    shapeButtons.forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.getElementById(`shape-${type}`).classList.add('active');
+}
+
+function startShapeEraser(o) {
+    if (!isShapeEraserMode || !activeObject) return;
+
+    const pointer = canvas.getPointer(o.e);
+    shapeEraserStartPoint = pointer;
+
+    // Create initial shape
+    switch (currentShapeType) {
+        case 'circle':
+            tempShapeEraserObject = new fabric.Circle({
+                left: pointer.x,
+                top: pointer.y,
+                radius: 1,
+                fill: 'rgba(255, 0, 0, 0.3)',
+                stroke: 'red',
+                strokeWidth: 1,
+                originX: 'center',
+                originY: 'center',
+                selectable: false,
+                evented: false
+            });
+            break;
+        case 'ellipse':
+            tempShapeEraserObject = new fabric.Ellipse({
+                left: pointer.x,
+                top: pointer.y,
+                rx: 1,
+                ry: 1,
+                fill: 'rgba(255, 0, 0, 0.3)',
+                stroke: 'red',
+                strokeWidth: 1,
+                originX: 'center',
+                originY: 'center',
+                selectable: false,
+                evented: false
+            });
+            break;
+        case 'rect':
+            tempShapeEraserObject = new fabric.Rect({
+                left: pointer.x,
+                top: pointer.y,
+                width: 1,
+                height: 1,
+                fill: 'rgba(255, 0, 0, 0.3)',
+                stroke: 'red',
+                strokeWidth: 1,
+                originX: 'left',
+                originY: 'top',
+                selectable: false,
+                evented: false
+            });
+            break;
+        case 'triangle':
+            tempShapeEraserObject = new fabric.Triangle({
+                left: pointer.x,
+                top: pointer.y,
+                width: 1,
+                height: 1,
+                fill: 'rgba(255, 0, 0, 0.3)',
+                stroke: 'red',
+                strokeWidth: 1,
+                originX: 'left',
+                originY: 'top',
+                selectable: false,
+                evented: false
+            });
+            break;
+        case 'polygon':
+            tempShapeEraserObject = new fabric.Polygon([
+                { x: pointer.x, y: pointer.y },
+                { x: pointer.x + 1, y: pointer.y },
+                { x: pointer.x + 0.5, y: pointer.y + 1 }
+            ], {
+                fill: 'rgba(255, 0, 0, 0.3)',
+                stroke: 'red',
+                strokeWidth: 1,
+                selectable: false,
+                evented: false
+            });
+            break;
+    }
+
+    canvas.add(tempShapeEraserObject);
+}
+
+function drawShapeEraser(o) {
+    if (!isShapeEraserMode || !shapeEraserStartPoint || !tempShapeEraserObject) return;
+
+    const pointer = canvas.getPointer(o.e);
+
+    switch (currentShapeType) {
+        case 'circle':
+            const radius = Math.sqrt(
+                Math.pow(pointer.x - shapeEraserStartPoint.x, 2) +
+                Math.pow(pointer.y - shapeEraserStartPoint.y, 2)
+            );
+            tempShapeEraserObject.set({ radius: radius });
+            break;
+        case 'ellipse':
+            const rx = Math.abs(pointer.x - shapeEraserStartPoint.x);
+            const ry = Math.abs(pointer.y - shapeEraserStartPoint.y);
+            tempShapeEraserObject.set({ rx: rx, ry: ry });
+            break;
+        case 'rect':
+        case 'triangle':
+            const width = pointer.x - shapeEraserStartPoint.x;
+            const height = pointer.y - shapeEraserStartPoint.y;
+            tempShapeEraserObject.set({
+                width: Math.abs(width),
+                height: Math.abs(height),
+                left: width < 0 ? pointer.x : shapeEraserStartPoint.x,
+                top: height < 0 ? pointer.y : shapeEraserStartPoint.y
+            });
+            break;
+        case 'polygon':
+            // For polygon, we'll make a simple polygon with the mouse points
+            const points = [
+                { x: shapeEraserStartPoint.x, y: shapeEraserStartPoint.y },
+                { x: pointer.x, y: shapeEraserStartPoint.y },
+                { x: pointer.x, y: pointer.y },
+                { x: shapeEraserStartPoint.x, y: pointer.y }
+            ];
+            tempShapeEraserObject.set({ points: points });
+            break;
+    }
+
+    canvas.renderAll();
+}
+
+function endShapeEraser() {
+    if (!isShapeEraserMode || !tempShapeEraserObject || !activeObject) {
+        if (tempShapeEraserObject) {
+            canvas.remove(tempShapeEraserObject);
+            tempShapeEraserObject = null;
+        }
+        shapeEraserStartPoint = null;
+        return;
+    }
+
+    // Only proceed with images
+    if (activeObject && activeObject.type === 'image') {
+        // Keep the original HTML Image element reference for high quality
+        const originalElement = activeObject._element;
+
+        // We create a clipping path from our shape
+        const clipShape = fabric.util.object.clone(tempShapeEraserObject);
+
+        // Transform the shape into the image's coordinate space
+        const transformedShape = getTransformedShape(clipShape, activeObject);
+
+        // Create a path string for the eraser shape
+        let eraserPath;
+        switch (clipShape.type) {
+            case 'circle':
+                // We need a path for the clipPath
+                eraserPath = new fabric.Path(createCirclePath(
+                    transformedShape.left,
+                    transformedShape.top,
+                    transformedShape.radius
+                ));
+                break;
+            case 'ellipse':
+                eraserPath = new fabric.Path(createEllipsePath(
+                    transformedShape.left,
+                    transformedShape.top,
+                    transformedShape.rx,
+                    transformedShape.ry
+                ));
+                break;
+            case 'rect':
+                eraserPath = new fabric.Path(createRectPath(
+                    transformedShape.left,
+                    transformedShape.top,
+                    transformedShape.width,
+                    transformedShape.height
+                ));
+                break;
+            case 'triangle':
+                eraserPath = new fabric.Path(createTrianglePath(
+                    transformedShape.left,
+                    transformedShape.top,
+                    transformedShape.width,
+                    transformedShape.height
+                ));
+                break;
+            case 'polygon':
+                eraserPath = new fabric.Path(createPolygonPath(transformedShape.points));
+                break;
+        }
+
+        if (!eraserPath) {
+            // Clean up if we couldn't create a path
+            canvas.remove(tempShapeEraserObject);
+            tempShapeEraserObject = null;
+            return;
+        }
+
+        // Now we need to process the image to create the transparent areas
+        // Create a canvas at the NATURAL size of the image (no quality loss)
+        const srcCanvas = document.createElement('canvas');
+        const ctx = srcCanvas.getContext('2d');
+        srcCanvas.width = originalElement.naturalWidth;
+        srcCanvas.height = originalElement.naturalHeight;
+
+        // Draw the image at its full size
+        ctx.drawImage(originalElement, 0, 0, srcCanvas.width, srcCanvas.height);
+
+        // Create a similar sized canvas for the mask
+        const maskCanvas = document.createElement('canvas');
+        const maskCtx = maskCanvas.getContext('2d');
+        maskCanvas.width = srcCanvas.width;
+        maskCanvas.height = srcCanvas.height;
+
+        // Scale the eraser path to match the natural image size
+        const scaleX = originalElement.naturalWidth / activeObject.width;
+        const scaleY = originalElement.naturalHeight / activeObject.height;
+
+        // Draw the mask
+        maskCtx.fillStyle = 'black';
+        maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+        maskCtx.fillStyle = 'white';
+
+        // Create adjusted shape for the natural size
+        maskCtx.beginPath();
+        switch (currentShapeType) {
+            case 'circle':
+                maskCtx.arc(
+                    transformedShape.left * scaleX,
+                    transformedShape.top * scaleY,
+                    transformedShape.radius * scaleX,  // Use scale X for simplicity
+                    0, Math.PI * 2
+                );
+                break;
+            case 'ellipse':
+                maskCtx.ellipse(
+                    transformedShape.left * scaleX,
+                    transformedShape.top * scaleY,
+                    transformedShape.rx * scaleX,
+                    transformedShape.ry * scaleY,
+                    0, 0, Math.PI * 2
+                );
+                break;
+            case 'rect':
+                maskCtx.rect(
+                    transformedShape.left * scaleX,
+                    transformedShape.top * scaleY,
+                    transformedShape.width * scaleX,
+                    transformedShape.height * scaleY
+                );
+                break;
+            case 'triangle': {
+                const x = transformedShape.left * scaleX;
+                const y = transformedShape.top * scaleY;
+                const w = transformedShape.width * scaleX;
+                const h = transformedShape.height * scaleY;
+                maskCtx.moveTo(x + w/2, y);
+                maskCtx.lineTo(x, y + h);
+                maskCtx.lineTo(x + w, y + h);
+                break;
+            }
+            case 'polygon':
+                if (transformedShape.points && transformedShape.points.length > 0) {
+                    const scaledPoints = transformedShape.points.map(pt => ({
+                        x: pt.x * scaleX,
+                        y: pt.y * scaleY
+                    }));
+                    maskCtx.moveTo(scaledPoints[0].x, scaledPoints[0].y);
+                    for (let i = 1; i < scaledPoints.length; i++) {
+                        maskCtx.lineTo(scaledPoints[i].x, scaledPoints[i].y);
+                    }
+                }
+                break;
+        }
+        maskCtx.closePath();
+        maskCtx.fill();
+
+        // Apply the mask to the image data
+        const imageData = ctx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+        const maskData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+
+        for (let i = 0; i < imageData.data.length; i += 4) {
+            // If mask is white (255), set alpha to 0
+            if (maskData.data[i] === 255) {
+                imageData.data[i + 3] = 0; // Set alpha to 0 (transparent)
+            }
+        }
+
+        // Put the data back
+        ctx.putImageData(imageData, 0, 0);
+
+        // Create a new Fabric Image from the high-res canvas
+        fabric.Image.fromURL(srcCanvas.toDataURL('image/png'), newImg => {
+            // Preserve all the original image properties
+            newImg.set({
+                left: activeObject.left,
+                top: activeObject.top,
+                scaleX: activeObject.scaleX,
+                scaleY: activeObject.scaleY,
+                angle: activeObject.angle,
+                flipX: activeObject.flipX,
+                flipY: activeObject.flipY,
+                selectable: activeObject.selectable
+            });
+
+            // Remove the old image and add the new one
+            canvas.remove(activeObject);
+            canvas.add(newImg);
+            canvas.setActiveObject(newImg);
+
+            // Clean up
+            canvas.remove(tempShapeEraserObject);
+            tempShapeEraserObject = null;
+            shapeEraserStartPoint = null;
+
+            canvas.renderAll();
+        }, { crossOrigin: 'anonymous' });
+    } else {
+        // Not an image, just clean up
+        canvas.remove(tempShapeEraserObject);
+        tempShapeEraserObject = null;
+        shapeEraserStartPoint = null;
+    }
+}
+
+// Helper functions to create SVG path strings
+function createCirclePath(cx, cy, r) {
+    return `M ${cx-r},${cy} a ${r},${r} 0 1,0 ${r*2},0 a ${r},${r} 0 1,0 -${r*2},0 z`;
+}
+
+function createEllipsePath(cx, cy, rx, ry) {
+    return `M ${cx-rx},${cy} a ${rx},${ry} 0 1,0 ${rx*2},0 a ${rx},${ry} 0 1,0 -${rx*2},0 z`;
+}
+
+function createRectPath(x, y, w, h) {
+    return `M ${x},${y} h ${w} v ${h} h -${w} z`;
+}
+
+function createTrianglePath(x, y, w, h) {
+    return `M ${x+w/2},${y} L ${x},${y+h} L ${x+w},${y+h} z`;
+}
+
+function createPolygonPath(points) {
+    if (!points || points.length < 3) return '';
+    let path = `M ${points[0].x},${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+        path += ` L ${points[i].x},${points[i].y}`;
+    }
+    path += ' z';
+    return path;
+}
+
+// Helper function to transform shape coordinates from canvas to image space
+function getTransformedShape(shape, targetObject) {
+    const transformedShape = fabric.util.object.clone(shape);
+
+    // Get the target object's transformation properties
+    const objLeft = targetObject.left;
+    const objTop = targetObject.top;
+    const objScaleX = targetObject.scaleX;
+    const objScaleY = targetObject.scaleY;
+
+    // Calculate position relative to the target object
+    if (shape.type === 'circle') {
+        transformedShape.left = (shape.left - objLeft) / objScaleX;
+        transformedShape.top = (shape.top - objTop) / objScaleY;
+        transformedShape.radius = shape.radius / ((objScaleX + objScaleY) / 2);
+    }
+    else if (shape.type === 'ellipse') {
+        transformedShape.left = (shape.left - objLeft) / objScaleX;
+        transformedShape.top = (shape.top - objTop) / objScaleY;
+        transformedShape.rx = shape.rx / objScaleX;
+        transformedShape.ry = shape.ry / objScaleY;
+    }
+    else if (shape.type === 'rect' || shape.type === 'triangle') {
+        transformedShape.left = (shape.left - objLeft) / objScaleX;
+        transformedShape.top = (shape.top - objTop) / objScaleY;
+        transformedShape.width = shape.width / objScaleX;
+        transformedShape.height = shape.height / objScaleY;
+    }
+    else if (shape.type === 'polygon') {
+        transformedShape.points = shape.points.map(point => ({
+            x: (point.x - objLeft) / objScaleX,
+            y: (point.y - objTop) / objScaleY
+        }));
+    }
+
+    return transformedShape;
+}
