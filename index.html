@@ -6,6 +6,21 @@
     <title>ImageWeave - Neo-Brutalist Editor</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap">
+<!-- Custom font definition -->
+<style>
+    @font-face {
+        font-family: 'Komrile';
+        src: url('Komrile-Regular.woff2') format('woff2');
+        font-weight: normal;
+        font-style: normal;
+    }
+    @font-face {
+        font-family: 'Glitched';
+        src: url('Glitched-Light.woff2') format('woff2');
+        font-weight: normal;
+        font-style: normal;
+    }
+</style>
     <style>
         :root {
             --primary: #000000;
@@ -347,6 +362,8 @@
                 <option value="Courier New">Courier New</option>
                 <option value="cursive">Cursive</option>
                 <option value="Impact">Impact</option>
+                <option value="Komrile">Komrile</option>
+                <option value="Glitched">Glitched</option>
             </select>
             <label for="align-select">Alignment</label>
             <select name="align" id="align-select" oninput="updateText()">
@@ -361,13 +378,23 @@
             <label for="strokeColor-select">Stroke Color</label>
             <input name="strokeColor" id="strokeColor-select" type="color" oninput="updateText()">
             <label for="strokeWidth-select">Stroke Width</label>
-            <input name="strokeWidth" id="strokeWidth-select" type="range" min="0" max="10" value="1" oninput="updateText()">
+            <input name="strokeWidth" id="strokeWidth-select" type="range" step="0.2" min="0" max="10" value="1" oninput="updateText()">
             <div style="display: flex; align-items: center; margin-top: 8px;">
                 <input type="checkbox" id="highlight-enabled" oninput="updateText()" style="margin-right: 8px;">
                 <label for="highlight-enabled">Highlight Text</label>
             </div>
             <label for="highlightColor-select">Highlight Color</label>
             <input name="highlightColor" id="highlightColor-select" type="color" oninput="updateText()">
+            <div>
+                <label for="outline-enabled">Text Outline?</label>
+                <input type="checkbox" id="outline-enabled" oninput="updateText()">
+                <div>
+                    <label for="outline-color">Outline Color</label>
+                    <input name="outlineColor" id="outline-color" type="color" value="#ffffff" oninput="updateText()">
+                    <label for="outline-width">Outline Width</label>
+                    <input name="outlineWidth" id="outline-width" type="range" min="1" max="5" value="1" step="1" oninput="updateText()">
+                </div>
+            </div>
         </div>
 
         <div class="section-separator"></div>

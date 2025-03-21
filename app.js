@@ -978,15 +978,38 @@ let highlightColorSelect = document.querySelector('#highlightColor-select')
 let highlightEnabled = document.querySelector('#highlight-enabled')
 function updateText() {
     if (!activeObject) return
+
+    const outlineEnabled = document.querySelector('#outline-enabled').checked;
+    const outlineColor = document.querySelector('#outline-color').value;
+    const outlineWidth = parseInt(document.querySelector('#outline-width').value);
+
+    // Apply the text properties
     activeObject.set({
         fontFamily: fontSelect.value,
         textAlign: alignSelect.value,
         lineHeight: lineHeightSelect.value,
-        fill: fillColorSelect.value,
-        stroke: strokeColorSelect.value,
-        strokeWidth: strokeWidthSelect.value,
         textBackgroundColor: highlightEnabled.checked ? highlightColorSelect.value : null
     })
+
+    // Handle special case for outlined text
+    if (outlineEnabled) {
+        // Create the outlined effect
+        activeObject.set({
+            fill: fillColorSelect.value,
+            stroke: outlineColor,
+            strokeWidth: outlineWidth,
+            paintFirst: 'stroke'  // This makes the stroke appear outside the text
+        });
+    } else {
+        // Regular text styling
+        activeObject.set({
+            fill: fillColorSelect.value,
+            stroke: strokeColorSelect.value,
+            strokeWidth: strokeWidthSelect.value,
+            paintFirst: 'fill'
+        });
+    }
+
     canvas.requestRenderAll()
 }
 
