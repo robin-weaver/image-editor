@@ -1,11 +1,42 @@
 
 // canvas setup
 const canvas = new fabric.Canvas('canvas');
+// Create a noise texture programmatically
+const createNoisePattern = () => {
+  const patternCanvas = document.createElement('canvas');
+  const patternCtx = patternCanvas.getContext('2d');
+  const scale = 2; // Scale for higher resolution
+
+  patternCanvas.width = 200 * scale;
+  patternCanvas.height = 200 * scale;
+
+  // Fill with base color (slightly off-white)
+  patternCtx.fillStyle = '#f5f5f5';
+  patternCtx.fillRect(0, 0, patternCanvas.width, patternCanvas.height);
+
+  // Add noise
+  const imageData = patternCtx.getImageData(0, 0, patternCanvas.width, patternCanvas.height);
+  const data = imageData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    // Random noise with brutalist contrast
+    const noise = Math.random() * 20 - 10;
+    data[i] = Math.max(0, Math.min(250, data[i] + noise));     // R
+    data[i+1] = Math.max(0, Math.min(250, data[i+1] + noise)); // G
+    data[i+2] = Math.max(0, Math.min(250, data[i+2] + noise)); // B
+  }
+
+  patternCtx.putImageData(imageData, 0, 0);
+  return patternCanvas.toDataURL();
+};
+
+// Apply the noise pattern
+const noisePattern = createNoisePattern();
 canvas.setBackgroundColor(
-    {source: 'checker.png', repeat: 'repeat'},
-    () => {
-        canvas.renderAll();
-    }
+  {source: noisePattern, repeat: 'repeat'},
+  () => {
+    canvas.renderAll();
+  }
 );
 canvas.preserveObjectStacking = true;
 fabric.Object.prototype.erasable = false;
