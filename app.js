@@ -1510,3 +1510,91 @@ function getTransformedShape(shape, targetObject) {
 
     return transformedShape;
 }
+
+// Add these variables at the top of app.js, with your other state variables
+let snapRotation = false;
+let rotationSnap = 15; // Degrees to snap rotation
+
+// Add this function to handle rotation snapping
+function setObjectRotation(angle) {
+    if (!activeObject) return;
+    
+    // Normalize angle to 0-360
+    angle = angle % 360;
+    if (angle < 0) angle += 360;
+    
+    // Apply the rotation to the active object
+    activeObject.set('angle', angle);
+    document.getElementById('rotation-input').value = Math.round(angle);
+    canvas.renderAll();
+}
+
+// Function to handle rotation with snapping
+function rotateWithSnap(angle) {
+    if (!activeObject) return;
+    
+    if (snapRotation) {
+        // Snap to nearest increment
+        angle = Math.round(angle / rotationSnap) * rotationSnap;
+    }
+    
+    setObjectRotation(angle);
+}
+
+// Add event listener to capture rotation events
+canvas.on('object:rotating', function(options) {
+    if (snapRotation && options.target) {
+        const angle = options.target.angle;
+        options.target.set('angle', Math.round(angle / rotationSnap) * rotationSnap);
+    }
+    
+    // Update the rotation input field
+    if (options.target) {
+        document.getElementById('rotation-input').value = Math.round(options.target.angle);
+    }
+});
+
+// Update the rotation input when an object is selected
+canvas.on('selection:created', function(options) {
+    if (options.selected && options.selected[0]) {
+        document.getElementById('rotation-input').value = Math.round(options.selected[0].angle);
+    }
+});
+
+canvas.on('selection:updated', function(options) {
+    if (options.selected && options.selected[0]) {
+        document.getElementById('rotation-input').value = Math.round(options.selected[0].angle);
+    }
+});
+
+// Function to rotate left by rotationSnap degrees
+function rotateLeft() {
+    if (!activeObject) return;
+    const currentAngle = activeObject.angle || 0;
+    rotateWithSnap(currentAngle - rotationSnap);
+}
+
+// Function to rotate right by rotationSnap degrees
+function rotateRight() {
+    if (!activeObject) return;
+    const currentAngle = activeObject.angle || 0;
+    rotateWithSnap(currentAngle + rotationSnap);
+}
+
+// Function to toggle snap rotation
+function toggleSnapRotation() {
+    snapRotation = !snapRotation;
+    document.getElementById('snap-rotation').textContent = 
+        snapRotation ? 'Snap: ON' : 'Snap: OFF';
+}
+
+// Function to update object rotation from input field
+function updateRotationFromInput() {
+    if (!activeObject) return;
+    const inputValue = document.getElementById('rotation-input').value;
+    const angle = parseFloat(inputValue);
+    
+    if (!isNaN(angle)) {
+        setObjectRotation(angle);
+    }
+}
