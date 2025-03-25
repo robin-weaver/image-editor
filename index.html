@@ -300,6 +300,12 @@
         <button onclick="startDepthEstimation()" title="Depth Estimation"><i class="material-icons">height</i></button>
         <button onclick="startSegmentation()" title="Segmentation"><i class="material-icons">theater_comedy</i></button>
         <button onclick="downloadImage()" title="Download"><i class="material-icons">save_alt</i></button>
+        <div id="rotation-controls" style="display: flex; align-items: center; background-color: #f1f1f1; padding: 5px; border: 1px solid #ddd; border-radius: 4px; margin-top: 10px;">
+            <button onclick="rotateLeft()" title="Rotate Left"><i class="material-icons">rotate_left</i></button>
+            <input type="number" id="rotation-input" min="0" max="359" value="0" style="width: 60px; margin: 0 5px;" oninput="updateRotationFromInput()">
+            <button onclick="rotateRight()" title="Rotate Right"><i class="material-icons">rotate_right</i></button>
+            <button id="snap-rotation" onclick="toggleSnapRotation()" style="margin-left: 10px;">Snap: OFF</button>
+        </div>
     </div>
 
     <div id="sidebar">
