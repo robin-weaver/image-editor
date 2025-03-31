@@ -1598,3 +1598,298 @@ function updateRotationFromInput() {
         setObjectRotation(angle);
     }
 }
+
+// Add these lines to your app.js file
+
+// Shape drawing variables
+let isDrawingShape = false;
+let currentShape = null;
+let startPoint = { x: 0, y: 0 };
+let currentShapeType = 'rect';
+let shapeStrokeWidth = 2;
+let shapeStrokeColor = '#000000';
+let shapeFillColor = 'rgba(0, 0, 0, 0.3)';
+
+// Function to start shape drawing mode
+function startShapeDrawing() {
+    // Exit other modes first
+    if (canvas.isDrawingMode) {
+        togglePaintMode();
+    }
+    if (bucketMode) {
+        toggleBucketMode();
+    }
+
+    isDrawingShape = true;
+    document.getElementById('shape-controls').style.display = 'block';
+    
+    // Set cursor
+    canvas.defaultCursor = 'crosshair';
+    
+    // Remove existing event listeners
+    canvas.off('mouse:down');
+    canvas.off('mouse:move');
+    canvas.off('mouse:up');
+    
+    // Add shape drawing event listeners
+    canvas.on('mouse:down', onShapeMouseDown);
+    canvas.on('mouse:move', onShapeMouseMove);
+    canvas.on('mouse:up', onShapeMouseUp);
+}
+
+// Function to exit shape drawing mode
+function exitShapeDrawing() {
+    isDrawingShape = false;
+    document.getElementById('shape-controls').style.display = 'none';
+    
+    // Reset cursor
+    canvas.defaultCursor = 'default';
+    
+    // Remove shape drawing event listeners
+    canvas.off('mouse:down', onShapeMouseDown);
+    canvas.off('mouse:move', onShapeMouseMove);
+    canvas.off('mouse:up', onShapeMouseUp);
+}
+
+// Shape mouse event handlers
+function onShapeMouseDown(options) {
+    if (!isDrawingShape) return;
+    
+    // Get start point
+    const pointer = canvas.getPointer(options.e);
+    startPoint = { x: pointer.x, y: pointer.y };
+    
+    // Create initial shape
+    switch (currentShapeType) {
+        case 'rect':
+            currentShape = new fabric.Rect({
+                left: startPoint.x,
+                top: startPoint.y,
+                width: 0,
+                height: 0,
+                fill: shapeFillColor,
+                stroke: shapeStrokeColor,
+                strokeWidth: shapeStrokeWidth,
+                selectable: false
+            });
+            break;
+        case 'circle':
+            currentShape = new fabric.Circle({
+                left: startPoint.x,
+                top: startPoint.y,
+                radius: 0,
+                fill: shapeFillColor,
+                stroke: shapeStrokeColor,
+                strokeWidth: shapeStrokeWidth,
+                selectable: false
+            });
+            break;
+        case 'triangle':
+            currentShape = new fabric.Triangle({
+                left: startPoint.x,
+                top: startPoint.y,
+                width: 0,
+                height: 0,
+                fill: shapeFillColor,
+                stroke: shapeStrokeColor,
+                strokeWidth: shapeStrokeWidth,
+                selectable: false
+            });
+            break;
+        case 'line':
+            currentShape = new fabric.Line(
+                [startPoint.x, startPoint.y, startPoint.x, startPoint.y],
+                {
+                    stroke: shapeStrokeColor,
+                    strokeWidth: shapeStrokeWidth,
+                    selectable: false
+                }
+            );
+            break;
+        case 'ellipse':
+            currentShape = new fabric.Ellipse({
+                left: startPoint.x,
+                top: startPoint.y,
+                rx: 0,
+                ry: 0,
+                fill: shapeFillColor,
+                stroke: shapeStrokeColor,
+                strokeWidth: shapeStrokeWidth,
+                selectable: false
+            });
+            break;
+        case 'polygon': 
+            // For polygon, start with a line from startPoint to startPoint
+            currentShape = new fabric.Polygon(
+                [
+                    { x: startPoint.x, y: startPoint.y },
+                    { x: startPoint.x, y: startPoint.y }
+                ],
+                {
+                    fill: shapeFillColor,
+                    stroke: shapeStrokeColor,
+                    strokeWidth: shapeStrokeWidth,
+                    selectable: false
+                }
+            );
+            break;
+    }
+    
+    canvas.add(currentShape);
+}
+
+function onShapeMouseMove(options) {
+    if (!isDrawingShape || !currentShape) return;
+    
+    const pointer = canvas.getPointer(options.e);
+    
+    switch (currentShapeType) {
+        case 'rect':
+            if (startPoint.x > pointer.x) {
+                currentShape.set({ left: pointer.x });
+            }
+            if (startPoint.y > pointer.y) {
+                currentShape.set({ top: pointer.y });
+            }
+            
+            currentShape.set({
+                width: Math.abs(startPoint.x - pointer.x),
+                height: Math.abs(startPoint.y - pointer.y)
+            });
+            break;
+        
+        case 'circle':
+            const radius = Math.sqrt(
+                Math.pow(startPoint.x - pointer.x, 2) +
+                Math.pow(startPoint.y - pointer.y, 2)
+            ) / 2;
+            
+            currentShape.set({
+                radius: radius,
+                left: startPoint.x - radius,
+                top: startPoint.y - radius
+            });
+            break;
+        
+        case 'triangle':
+            if (startPoint.x > pointer.x) {
+                currentShape.set({ left: pointer.x });
+            }
+            if (startPoint.y > pointer.y) {
+                currentShape.set({ top: pointer.y });
+            }
+            
+            currentShape.set({
+                width: Math.abs(startPoint.x - pointer.x),
+                height: Math.abs(startPoint.y - pointer.y)
+            });
+            break;
+        
+        case 'line':
+            currentShape.set({
+                x2: pointer.x,
+                y2: pointer.y
+            });
+            break;
+        
+        case 'ellipse':
+            const rx = Math.abs(startPoint.x - pointer.x) / 2;
+            const ry = Math.abs(startPoint.y - pointer.y) / 2;
+            
+            currentShape.set({
+                rx: rx,
+                ry: ry,
+                left: Math.min(startPoint.x, pointer.x) + rx,
+                top: Math.min(startPoint.y, pointer.y) + ry
+            });
+            break;
+            
+        case 'polygon':
+            // Update the last point for polygon
+            const points = currentShape.get('points');
+            points[points.length - 1] = { x: pointer.x, y: pointer.y };
+            currentShape.set({ points: points });
+            break;
+    }
+    
+    canvas.renderAll();
+}
+
+function onShapeMouseUp() {
+    if (!isDrawingShape || !currentShape) return;
+    
+    // Make the shape selectable
+    currentShape.set({
+        selectable: true,
+        evented: true
+    });
+    
+    // Special case for continued polygon drawing
+    if (currentShapeType === 'polygon') {
+        // Continue with the polygon - keep the shape in drawing mode
+        return;
+    }
+    
+    // Reset the current shape
+    currentShape = null;
+    canvas.renderAll();
+}
+
+// Function to add a point to polygon
+function addPolygonPoint() {
+    if (currentShapeType !== 'polygon' || !currentShape) return;
+    
+    const points = currentShape.get('points');
+    const lastPoint = points[points.length - 1];
+    
+    // Add a new point that's a copy of the last point
+    points.push({ x: lastPoint.x, y: lastPoint.y });
+    currentShape.set({ points: points });
+    canvas.renderAll();
+}
+
+// Function to complete polygon
+function completePolygon() {
+    if (currentShapeType !== 'polygon' || !currentShape) return;
+    
+    // Make the polygon selectable
+    currentShape.set({
+        selectable: true,
+        evented: true
+    });
+    
+    // Reset the current shape
+    currentShape = null;
+    canvas.renderAll();
+}
+
+// Set shape type function
+function setShapeType(type) {
+    currentShapeType = type;
+    
+    // Show/hide polygon controls
+    const polygonControls = document.getElementById('polygon-controls');
+    if (polygonControls) {
+        polygonControls.style.display = type === 'polygon' ? 'block' : 'none';
+    }
+    
+    // If we had a polygon in progress, complete it
+    if (currentShape && currentShapeType !== 'polygon') {
+        completePolygon();
+    }
+}
+
+// Update shape stroke width
+function updateShapeStrokeWidth(value) {
+    shapeStrokeWidth = parseInt(value);
+}
+
+// Update shape stroke color
+function updateShapeStrokeColor(value) {
+    shapeStrokeColor = value;
+}
+
+// Update shape fill color
+function updateShapeFillColor(value) {
+    shapeFillColor = value;
+}
