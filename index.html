@@ -447,6 +447,63 @@
             }
           </style>
         </div>
+        <!-- Shape Drawing Controls - Paste this into your sidebar div -->
+<div class="shape-drawing-section">
+  <button onclick="startShapeDrawing()" id="start-shape-drawing">
+    <i class="material-icons">shapes</i> Draw Shapes
+  </button>
+  
+  <div id="shape-controls" style="display: none; padding: 10px; background-color: #f1f1f1; border-radius: 4px; margin-top: 10px;">
+    <button onclick="exitShapeDrawing()">Exit Shape Drawing</button>
+    
+    <fieldset>
+      <legend>Shape:</legend>
+      <div>
+        <input type="radio" id="shape-rect" name="shape-type" value="rect" checked onclick="setShapeType('rect')" />
+        <label for="shape-rect">Rectangle</label>
+      </div>
+      <div>
+        <input type="radio" id="shape-circle" name="shape-type" value="circle" onclick="setShapeType('circle')" />
+        <label for="shape-circle">Circle</label>
+      </div>
+      <div>
+        <input type="radio" id="shape-triangle" name="shape-type" value="triangle" onclick="setShapeType('triangle')" />
+        <label for="shape-triangle">Triangle</label>
+      </div>
+      <div>
+        <input type="radio" id="shape-line" name="shape-type" value="line" onclick="setShapeType('line')" />
+        <label for="shape-line">Line</label>
+      </div>
+      <div>
+        <input type="radio" id="shape-ellipse" name="shape-type" value="ellipse" onclick="setShapeType('ellipse')" />
+        <label for="shape-ellipse">Ellipse</label>
+      </div>
+      <div>
+        <input type="radio" id="shape-polygon" name="shape-type" value="polygon" onclick="setShapeType('polygon')" />
+        <label for="shape-polygon">Polygon</label>
+      </div>
+    </fieldset>
+    
+    <div id="polygon-controls" style="display: none;">
+      <button onclick="addPolygonPoint()">Add Point</button>
+      <button onclick="completePolygon()">Complete Polygon</button>
+    </div>
+    
+    <div class="shape-style-controls">
+      <label for="shape-stroke-width">Stroke Width:</label>
+      <input type="range" id="shape-stroke-width" min="1" max="20" value="2" oninput="updateShapeStrokeWidth(this.value)" />
+      
+      <label for="shape-stroke-color">Stroke Color:</label>
+      <input type="color" id="shape-stroke-color" value="#000000" oninput="updateShapeStrokeColor(this.value)" />
+      
+      <label for="shape-fill-color">Fill Color:</label>
+      <input type="color" id="shape-fill-color" value="#cccccc" oninput="updateShapeFillColor(this.value)" />
+      
+      <label for="shape-opacity">Fill Opacity:</label>
+      <input type="range" id="shape-opacity" min="0" max="100" value="30" oninput="updateShapeFillColor(document.getElementById('shape-fill-color').value.slice(0, 7) + Math.round(this.value * 255 / 100).toString(16).padStart(2, '0'))" />
+    </div>
+  </div>
+</div>
     </div>
 
     <div id="depthControlPanel">
